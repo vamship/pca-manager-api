@@ -18,13 +18,14 @@ export default class Lock {
     private _lockDir: string;
     private _lockId: string;
     private _state: string;
-    private _data: any;
+    private _license: any;
+    private _logs: object[];
     private _isInitialized: boolean;
     private _isCleanedUp: boolean;
     private _readFileMethod: (fileName: string) => Promise<string>;
     private _writeFileMethod: (
         fileName: string,
-        data: string,
+        license: string,
         options: any
     ) => Promise<string>;
     private _renameMethod: (
@@ -43,7 +44,8 @@ export default class Lock {
         this._isCleanedUp = false;
         this._lockId = 'NA';
         this._state = 'NA';
-        this._data = {};
+        this._license = {};
+        this._logs = [];
 
         this._logger = _loggerProvider.getLogger('lock', {
             lockDir
@@ -81,44 +83,64 @@ export default class Lock {
     }
 
     /**
-     * Gets the data associated with the lock. If the lock has not been
+     * Gets the license data associated with the lock. If the lock has not been
      * initialized, this method will throw an error.
      */
-    get data(): any {
+    get license(): any {
         this._checkInitialized();
-        return this._data;
+        return this._license;
     }
 
     /**
-     * Create a new lock file, initializing it with the update id, state and
-     * update data.
+     * Gets a list of messages associated with the job.
+     */
+    get logs(): object[] {
+        this._checkInitialized();
+        return this._logs;
+    }
+
+    /**
+     * Create a new lock file, initializing it with default values for
+     * properties.
      *
-     * @param data Update data that will be stored in the lock file. This is an
-     *        optional parameter that will be defaulted to an empty object.
+     * @param licenseData License data that will be stored in the lock file.
+     *        This is an optional parameter that will be defaulted to an empty
+     *        object.
      * @return A promise that is resolved or rejected based on the outcome of
      *         create operation. If successful, lockId and state properties
      *         will be overwritten.
      */
-    public create(data: any = {}): Promise<any> {
+    public create(license: any = {}): Promise<any> {
         if (this._isInitialized) {
             throw new Error('Lock already initialized');
         }
         const lockId = _shortId.generate();
-        const state = 'READY';
-        return this._writeLockFile(lockId, state, data, false);
+        const state = 'ACTIVE';
+        return this._writeLockFile(
+            lockId,
+            state,
+            license,
+            [
+                {
+                    kind: 'log',
+                    message: 'Lock created',
+                    timestamp: Date.now()
+                }
+            ],
+            false
+        );
     }
 
     /**
-     * Initialize the lock by loading the file from the file system, and if
-     * not found, attempting to initialize a new lock file with default data.
+     * Initialize the lock by loading the file from the file system.
      *
      * @return A promise that is resolved or rejected based on the outcome of
-     *         init operation. If successful, lockId and state properties will
-     *         be overwritten.
+     *         init operation. If successful, internal properties will be
+     *         overwritten.
      */
     public init(): Promise<any> {
         if (this._isInitialized) {
-            throw new Error('Lock already initialized');
+            return Promise.resolve();
         }
 
         const lockFile = _path.join(this._lockDir, LOCK_FILE_NAME);
@@ -145,11 +167,20 @@ export default class Lock {
                     1,
                     'Lock file does not define a valid state'
                 );
+                _argValidator.checkObject(
+                    data.license,
+                    'Lock file does not define a valid license'
+                );
+                _argValidator.checkArray(
+                    data.logs,
+                    'Lock file does not define valid logs'
+                );
 
                 this._logger.trace('Setting lock properties from lockfile');
                 this._lockId = data.lockId;
                 this._state = data.state;
-                this._data = data.data;
+                this._license = data.license;
+                this._logs = data.logs;
                 this._isInitialized = true;
             },
             (ex) => {
@@ -161,27 +192,54 @@ export default class Lock {
     }
 
     /**
-     * Updates the state of the job and writes the updated values into the
-     * lock file.
+     * Adds a log message to the internal buffer. The data will not be written
+     * to disk until the `save()` method is called.
      *
-     * @return A promise that is resolved or rejected based on the outcome of
-     *         update operation. The lockId property will only be updated
-     *         if the write to the file system is successful.
+     * @param logRecord The log data to write to disk.
+     */
+    public addLog(logRecord: object): void {
+        this._checkInitialized();
+        this._checkCleanedUp();
+        _argValidator.checkObject(logRecord, 'Invalid logRecord (arg #1)');
+
+        this._logger.trace('Adding log record');
+        this._logs.push(Object.assign({}, logRecord));
+    }
+
+    /**
+     * Updates the state of the lock file. The updated state will not be written
+     * to disk until the `save()` method is called.
+     *
+     * @param newState The new state to assign to the lock.
      */
     public updateState(newState: string): Promise<any> {
+        this._checkInitialized();
+        this._checkCleanedUp();
         _argValidator.checkString(newState, 1, 'Invalid newState (arg #1)');
+
+        this._logger.trace('Updating lock state');
+        this._state = newState;
+    }
+
+    /**
+     * Saves current lock data to disk.
+     *
+     * @return A promise that is resolved or rejected based on the outcome of
+     *         save operation.
+     */
+    public save(): Promise<any> {
         this._checkInitialized();
         this._checkCleanedUp();
 
-        this._logger.trace('Updating lock file state');
-        return this._writeLockFile(this._lockId, newState, this._data).then(
-            () => {
-                this._logger.trace(
-                    'State updated. Setting internal properties'
-                );
-                this._state = newState;
-            }
-        );
+        this._logger.trace('Saving lock file');
+        return this._writeLockFile(
+            this._lockId,
+            this._state,
+            this._license,
+            this._logs
+        ).then(() => {
+            this._logger.trace('Save successful');
+        });
     }
 
     /**
@@ -244,7 +302,8 @@ export default class Lock {
     private _writeLockFile(
         lockId: string,
         state: string,
-        data: any,
+        license: any,
+        logs: object[],
         overwrite: boolean = true
     ): Promise<any> {
         const flag = overwrite ? 'w' : 'wx';
@@ -254,7 +313,8 @@ export default class Lock {
             JSON.stringify({
                 lockId,
                 state,
-                data
+                license,
+                logs
             }),
             {
                 flag

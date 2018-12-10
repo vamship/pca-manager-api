@@ -38,9 +38,16 @@ describe('Lock', () => {
             {
                 lockId: _testValues.getString('lockId'),
                 state: _testValues.getString('state'),
-                data: {
+                license: {
                     foo: _testValues.getString('foo')
-                }
+                },
+                logs: [
+                    {
+                        kind: 'log',
+                        timestamp: _testValues.getTimestamp(),
+                        message: 'Lock created'
+                    }
+                ]
             },
             payload
         );
@@ -85,23 +92,14 @@ describe('Lock', () => {
 
             expect(lock.create).to.be.a('function');
             expect(lock.init).to.be.a('function');
+            expect(lock.addLog).to.be.a('function');
             expect(lock.updateState).to.be.a('function');
+            expect(lock.save).to.be.a('function');
             expect(lock.cleanup).to.be.a('function');
         });
     });
 
     describe('init()', () => {
-        it('should throw an error if the lock is already initialized', () => {
-            const error = 'Lock already initialized';
-            const wrapper = () => {
-                const lock = _createLock();
-                lock._isInitialized = true;
-                return lock.init();
-            };
-
-            expect(wrapper).to.throw(error);
-        });
-
         it('should return a promise when invoked', () => {
             const lock = _createLock();
 
@@ -109,6 +107,14 @@ describe('Lock', () => {
 
             expect(ret).to.be.an('object');
             expect(ret.then).to.be.a('function');
+        });
+
+        it('should resolve the promise if the lock is already initialized', () => {
+            const lock = _createLock();
+            lock._isInitialized = true;
+            const ret = lock.init();
+
+            return expect(ret).to.be.fulfilled;
         });
 
         it('should load the lock file from the filesystem when invoked', () => {
@@ -195,13 +201,62 @@ describe('Lock', () => {
             return expect(Promise.all(promises)).to.be.fulfilled;
         });
 
+        it('should throw an error if the lockfile does not define valid license data', () => {
+            const error = 'Lock file does not define a valid license';
+            const inputs = _testValues.allButObject();
+
+            const promises = inputs.map((license, index) => {
+                const lock = _createLock();
+                const readFileMethod = _fsMock.mocks.readFile;
+
+                const ret = lock.init();
+                const callback = readFileMethod.stub.args[index][1];
+                const payload = {
+                    lockId: _testValues.getString('lockId'),
+                    state: _testValues.getString('state'),
+                    license
+                };
+                callback(null, JSON.stringify(payload));
+
+                return expect(ret).to.be.rejectedWith(error);
+            });
+
+            return expect(Promise.all(promises)).to.be.fulfilled;
+        });
+
+        it('should throw an error if the lockfile does not define valid logs', () => {
+            const error = 'Lock file does not define valid logs';
+            const inputs = _testValues.allButArray();
+
+            const promises = inputs.map((logs, index) => {
+                const lock = _createLock();
+                const readFileMethod = _fsMock.mocks.readFile;
+
+                const ret = lock.init();
+                const callback = readFileMethod.stub.args[index][1];
+                const payload = {
+                    lockId: _testValues.getString('lockId'),
+                    state: _testValues.getString('state'),
+                    license: {
+                        foo: _testValues.getString('foo')
+                    },
+                    logs
+                };
+                callback(null, JSON.stringify(payload));
+
+                return expect(ret).to.be.rejectedWith(error);
+            });
+
+            return expect(Promise.all(promises)).to.be.fulfilled;
+        });
+
         it('should update instance properties with values from the lock file if validation succeeds', () => {
             const lock = _createLock();
             const readFileMethod = _fsMock.mocks.readFile;
 
             expect(lock._lockId).to.equal('NA');
             expect(lock._state).to.equal('NA');
-            expect(lock._data).to.deep.equal({});
+            expect(lock._license).to.deep.equal({});
             expect(lock._isInitialized).to.be.false;
 
             const ret = lock.init();
@@ -209,16 +264,24 @@ describe('Lock', () => {
             const payload = {
                 lockId: _testValues.getString('lockId'),
                 state: _testValues.getString('state'),
-                data: {
+                license: {
                     foo: _testValues.getString('foo')
-                }
+                },
+                logs: [
+                    {
+                        kind: 'log',
+                        timestamp: _testValues.getTimestamp(),
+                        message: 'Lock created'
+                    }
+                ]
             };
             callback(null, JSON.stringify(payload));
 
             return expect(ret).to.be.fulfilled.then(() => {
                 expect(lock._lockId).to.equal(payload.lockId);
                 expect(lock._state).to.equal(payload.state);
-                expect(lock._data).to.deep.equal(payload.data);
+                expect(lock._license).to.deep.equal(payload.license);
+                expect(lock._logs).to.deep.equal(payload.logs);
                 expect(lock._isInitialized).to.be.true;
             });
         });
@@ -296,30 +359,134 @@ describe('Lock', () => {
         });
     });
 
-    describe('data', () => {
+    describe('license', () => {
         it('should throw an error if property is accessed prior to initialization', () => {
             const error = 'Lock not initialized';
 
             const wrapper = () => {
                 const lock = _createLock();
-                return lock.data;
+                return lock.license;
             };
 
             expect(wrapper).to.throw(error);
         });
 
-        it('should return the data if the lock has been initialized', () => {
-            const data = {
+        it('should return the license if the lock has been initialized', () => {
+            const license = {
                 foo: _testValues.getString('foo')
             };
 
-            return _initLock(undefined, { data }).then(({ lock }) => {
-                expect(lock.data).to.deep.equal(data);
+            return _initLock(undefined, { license }).then(({ lock }) => {
+                expect(lock.license).to.deep.equal(license);
+            });
+        });
+    });
+
+    describe('logs', () => {
+        it('should throw an error if property is accessed prior to initialization', () => {
+            const error = 'Lock not initialized';
+
+            const wrapper = () => {
+                const lock = _createLock();
+                return lock.logs;
+            };
+
+            expect(wrapper).to.throw(error);
+        });
+
+        it('should return the logs if the lock has been initialized', () => {
+            const logs = [
+                {
+                    kind: 'log',
+                    timestamp: _testValues.getTimestamp(),
+                    message: 'Lock created'
+                }
+            ];
+
+            return _initLock(undefined, { logs }).then(({ lock }) => {
+                expect(lock.logs).to.deep.equal(logs);
+            });
+        });
+    });
+
+    describe('addLog()', () => {
+        it('should throw an error if the lock is not initialized', () => {
+            const error = 'Lock not initialized';
+            const wrapper = () => {
+                const lock = _createLock();
+                return lock.addLog({});
+            };
+
+            expect(wrapper).to.throw(error);
+        });
+
+        it('should throw an error if the lock has been cleaned up', () => {
+            const error = 'Lock is no longer available';
+            return _initLock().then(({ lock }) => {
+                const wrapper = () => {
+                    lock._isCleanedUp = true;
+                    return lock.addLog({});
+                };
+
+                expect(wrapper).to.throw(error);
+            });
+        });
+
+        it('should throw an error if the logRecord is invalid', () => {
+            const error = 'Invalid logRecord (arg #1)';
+            const inputs = _testValues.allButObject();
+
+            inputs.forEach((logRecord) => {
+                return _initLock().then(({ lock }) => {
+                    const wrapper = () => {
+                        return lock.addLog(logRecord);
+                    };
+
+                    expect(wrapper).to.throw(error);
+                });
+            });
+        });
+
+        it('should add the log record to the internal log array', () => {
+            return _initLock().then(({ lock }) => {
+                lock._logs = [];
+                const log = {
+                    kind: 'log',
+                    timestamp: _testValues.getTimestamp(),
+                    message: 'Lock created'
+                };
+                lock.addLog(log);
+
+                expect(lock._logs).to.have.length(1);
+                expect(lock._logs[0]).to.deep.equal(log);
+                expect(lock._logs[0]).to.not.equal(log);
             });
         });
     });
 
     describe('updateState()', () => {
+        it('should throw an error if the lock is not initialized', () => {
+            const error = 'Lock not initialized';
+            const wrapper = () => {
+                const lock = _createLock();
+                return lock.updateState(_testValues.getString('newState'));
+            };
+
+            expect(wrapper).to.throw(error);
+        });
+
+        it('should throw an error if the lock has been cleaned up', () => {
+            const error = 'Lock is no longer available';
+            return _initLock().then(({ lock }) => {
+                const wrapper = () => {
+                    lock._isCleanedUp = true;
+                    return lock.updateState(_testValues.getString('newState'));
+                };
+
+                expect(wrapper).to.throw(error);
+            });
+        });
+
         it('should throw an error if newState is invalid', () => {
             const error = 'Invalid newState (arg #1)';
             const inputs = _testValues.allButString('');
@@ -337,31 +504,44 @@ describe('Lock', () => {
             return expect(Promise.all(promises)).to.be.fulfilled;
         });
 
+        it('should update the internal state with the new value', () => {
+            return _initLock().then(({ lock }) => {
+                lock._state = _testValues.getString('oldState');
+
+                const newState = _testValues.getString('newState');
+                lock.updateState(newState);
+
+                expect(lock._state).to.equal(newState);
+            });
+        });
+    });
+
+    describe('save()', () => {
+        it('should throw an error if the lock is not initialized', () => {
+            const error = 'Lock not initialized';
+            const wrapper = () => {
+                const lock = _createLock();
+                return lock.save();
+            };
+
+            expect(wrapper).to.throw(error);
+        });
+
         it('should throw an error if the lock has been cleaned up', () => {
             const error = 'Lock is no longer available';
             return _initLock().then(({ lock }) => {
                 const wrapper = () => {
                     lock._isCleanedUp = true;
-                    return lock.updateState(_testValues.getString('newState'));
+                    return lock.save();
                 };
 
                 expect(wrapper).to.throw(error);
             });
         });
 
-        it('should throw an error if the lock is not initialized', () => {
-            const error = 'Lock not initialized';
-            const wrapper = () => {
-                const lock = _createLock();
-                return lock.updateState(_testValues.getString('newState'));
-            };
-
-            expect(wrapper).to.throw(error);
-        });
-
         it('should return a promise when invoked', () => {
             return _initLock().then(({ lock }) => {
-                const ret = lock.updateState(_testValues.getString('newState'));
+                const ret = lock.save();
 
                 expect(ret).to.be.an('object');
                 expect(ret.then).to.be.a('function');
@@ -369,21 +549,29 @@ describe('Lock', () => {
         });
 
         it('should write the new state to the lock file', () => {
-            const newState = _testValues.getString('newState');
             const lockDir = _testValues.getString('lockfile');
             const lockFile = _path.join(lockDir, LOCK_FILE_NAME);
             const lockId = _testValues.getString('lockId');
-            const data = {
+            const state = _testValues.getString('state');
+            const license = {
                 bar: _testValues.getString('bar')
             };
-            const props = { lockId, data };
+            const logs = [
+                {
+                    kind: 'log',
+                    timestamp: _testValues.getTimestamp(),
+                    message: 'Lock created'
+                }
+            ];
+
+            const props = { lockId, state, license, logs };
 
             return _initLock(lockDir, props).then(({ lock }) => {
                 const writeFileMethod = _fsMock.mocks.writeFile;
 
                 expect(writeFileMethod.stub).to.not.have.been.called;
 
-                lock.updateState(newState);
+                lock.save();
 
                 expect(writeFileMethod.stub).to.have.been.calledOnce;
                 expect(writeFileMethod.stub.args[0]).to.have.length(4);
@@ -392,10 +580,15 @@ describe('Lock', () => {
 
                 const payload = JSON.parse(writeFileMethod.stub.args[0][1]);
                 expect(payload).to.be.an('object');
-                expect(payload).to.have.all.keys(['lockId', 'state', 'data']);
+                expect(payload).to.have.all.keys([
+                    'lockId',
+                    'state',
+                    'license',
+                    'logs'
+                ]);
                 expect(payload.lockId).to.equal(lockId);
-                expect(payload.state).to.equal(newState);
-                expect(payload.data).to.deep.equal(data);
+                expect(payload.state).to.equal(state);
+                expect(payload.license).to.deep.equal(license);
 
                 expect(writeFileMethod.stub.args[0][2]).to.deep.equal({
                     flag: 'w'
@@ -405,13 +598,12 @@ describe('Lock', () => {
         });
 
         it('should reject the promise if lock file write fails', () => {
-            const newState = _testValues.getString('newState');
             const error = 'Error writing to lock file';
 
             return _initLock().then(({ lock }) => {
                 const writeFileMethod = _fsMock.mocks.writeFile;
 
-                const ret = lock.updateState(newState);
+                const ret = lock.save();
                 const writeCallback = writeFileMethod.stub.args[0][3];
 
                 writeCallback('something went wrong');
@@ -420,21 +612,16 @@ describe('Lock', () => {
             });
         });
 
-        it('should update the internal state property if lock file write succeeds', () => {
-            const newState = _testValues.getString('newState');
-
+        it('should resolve the promise if lock file write succeeds', () => {
             return _initLock().then(({ lock }) => {
                 const writeFileMethod = _fsMock.mocks.writeFile;
 
-                expect(lock.state).to.not.equal(newState);
-
-                const ret = lock.updateState(newState);
+                const ret = lock.save();
                 const writeCallback = writeFileMethod.stub.args[0][3];
+
                 writeCallback();
 
-                return expect(ret).to.be.fulfilled.then(() => {
-                    expect(lock.state).to.equal(newState);
-                });
+                return expect(ret).to.be.fulfilled;
             });
         });
     });
@@ -552,7 +739,7 @@ describe('Lock', () => {
             const lockFile = _path.join(lockDir, LOCK_FILE_NAME);
             const lock = _createLock(lockDir);
             const writeFileMethod = _fsMock.mocks.writeFile;
-            const data = {
+            const license = {
                 components: new Array(10).fill(0).map(() => ({
                     releaseName: _testValues.getString('releaseName'),
                     chartName: _testValues.getString('chartName'),
@@ -568,10 +755,11 @@ describe('Lock', () => {
                     }))
                 }))
             };
+            const startTime = Date.now();
 
             expect(writeFileMethod.stub).to.not.have.been.called;
 
-            lock.create(data);
+            lock.create(license);
 
             expect(writeFileMethod.stub).to.have.been.calledOnce;
             expect(writeFileMethod.stub.args[0]).to.have.length(4);
@@ -580,10 +768,23 @@ describe('Lock', () => {
 
             const payload = JSON.parse(writeFileMethod.stub.args[0][1]);
             expect(payload).to.be.an('object');
-            expect(payload).to.have.all.keys(['lockId', 'state', 'data']);
+            expect(payload).to.have.all.keys([
+                'lockId',
+                'state',
+                'license',
+                'logs'
+            ]);
             expect(payload.lockId).to.be.a('string').and.to.not.be.empty;
-            expect(payload.state).to.equal('READY');
-            expect(payload.data).to.deep.equal(data);
+            expect(payload.state).to.equal('ACTIVE');
+            expect(payload.license).to.deep.equal(license);
+
+            const logs = payload.logs;
+            expect(logs).to.be.an('array');
+            expect(logs).to.have.length(1);
+            expect(logs[0]).to.be.an('object');
+            expect(logs[0].kind).to.equal('log');
+            expect(logs[0].message).to.equal('Lock created');
+            expect(logs[0].timestamp).to.be.within(startTime, Date.now());
 
             expect(writeFileMethod.stub.args[0][2]).to.deep.equal({
                 flag: 'wx'

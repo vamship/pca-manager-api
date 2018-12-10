@@ -176,40 +176,42 @@ export default {
             if (!_lock.isReady) {
                 return _lock.init();
             }
-        }).then(() => {
-            if (_lock.state !== 'RUNNING') {
-                const error = `Lock is not in RUNNING state. Current state: [${
-                    _lock.state
-                }]`;
-                logger.error(error);
-                throw new Error(error);
-            }
+        })
+            .then(() => {
+                if (_lock.state !== 'RUNNING') {
+                    const error = `Lock is not in RUNNING state. Current state: [${
+                        _lock.state
+                    }]`;
+                    logger.error(error);
+                    throw new Error(error);
+                }
 
-            if (kind === 'fail') {
-                logger.trace('Processing fail message');
+                if (kind === 'fail') {
+                    logger.trace('Processing fail message');
 
-                return _lock.updateState('ERROR');
-            } else {
-                logger.trace('Processing success message');
+                    return _lock.updateState('ERROR');
+                } else {
+                    logger.trace('Processing success message');
 
-                const licenseDir = config.get('app.licenseDir');
+                    const licenseDir = config.get('app.licenseDir');
 
-                logger.trace('Initializing license object', { licenseDir });
-                const license = new License(licenseDir);
-                license.setData(_lock.data);
+                    logger.trace('Initializing license object', { licenseDir });
+                    const license = new License(licenseDir);
+                    license.setData(_lock.license);
 
-                logger.trace('Saving updated license data', {
-                    licenseData: _lock.data
-                });
+                    logger.trace('Saving updated license data', {
+                        licenseData: _lock.license
+                    });
 
-                return license.save().then(() => {
-                    logger.trace('License data updated and saved');
-                    return _lock.updateState('DONE');
-                });
-            }
-        }).then(() => {
-            return _lock.cleanup();
-        });
+                    return license.save().then(() => {
+                        logger.trace('License data updated and saved');
+                        return _lock.updateState('DONE');
+                    });
+                }
+            })
+            .then(() => {
+                return _lock.cleanup();
+            });
     }
 };
 

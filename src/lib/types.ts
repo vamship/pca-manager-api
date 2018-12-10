@@ -212,3 +212,23 @@ export interface ISoftwareComponent {
      */
     serviceAccounts: string[];
 }
+
+/**
+ * Defines a message from a software update job.
+ */
+export interface IJobMessage {
+    /**
+     * The kind of message from the job.
+     */
+    kind: string;
+
+    /**
+     * The timestamp of when the log message was received.
+     */
+    timestamp: number;
+
+    /**
+     * The contents of the job message.
+     */
+    message: string;
+}

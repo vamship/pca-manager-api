@@ -758,7 +758,7 @@ describe('[updateManager]', () => {
                     foo: _testValues.getString('foo')
                 };
 
-                lock.data = lockManifest;
+                lock.license = lockManifest;
 
                 expect(setDataMethod.stub).to.not.have.been.called;
 
