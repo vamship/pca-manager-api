@@ -7,13 +7,16 @@ import _loggerProvider from '@vamship/logger';
 import License from './license';
 import Lock from './lock';
 import SoftwareUpdaterJob from './software-updater-job';
-import { ILicense, ILogger } from './types';
+import { IJobMessage, ILicense, ILogger } from './types';
 
 import { Promise } from 'bluebird';
 import _fetch from 'isomorphic-fetch';
 
 const _logger: ILogger = _loggerProvider.getLogger('update-manager');
-let _lock: Lock;
+
+let _lock: Lock | undefined;
+let _createPromise: Promise<any> = Promise.resolve();
+let _notifyPromise: Promise<any> = Promise.resolve();
 
 const VALID_KINDS = ['log', 'success', 'fail'];
 
@@ -34,21 +37,44 @@ export default {
      *         the launch operation.
      */
     launchUpdate: (licenseData: ILicense): Promise<any> => {
+        if (_lock) {
+            throw new Error('Cannot create lock. A lock already exists');
+        }
         _argValidator.checkObject(licenseData, 'Invalid licenseData (arg #1)');
 
         const config = _configProvider.getConfig();
         const logger = _logger.child({ method: 'launchUpdate' });
-        const licenseDir = config.get('app.licenseDir');
 
-        logger.trace('Initializing license object', { licenseDir });
-        const license = new License(licenseDir);
+        // Will be initialized during the flow
+        let license;
 
-        // Will be initialized once the token is fetched.
-        let credentialProviderAuthToken;
+        const lockDir = config.get('app.lockDir');
 
-        logger.trace('Loading license file from disk');
-        return license
-            .load()
+        logger.trace('Creating new lock object.', { lockDir });
+        _lock = new Lock(lockDir);
+
+        let resolveRef;
+        _createPromise = new Promise((resolve, reject) => {
+            resolveRef = resolve;
+        });
+
+        logger.trace('Creating lock on file system');
+        let lockCreated = false;
+        return _lock
+            .create(licenseData)
+            .then(() => {
+                logger.trace('Initializing lock from file system');
+                lockCreated = true;
+                return _lock!.init();
+            })
+            .then(() => {
+                const licenseDir = config.get('app.licenseDir');
+
+                logger.trace('Initializing license object', { licenseDir });
+                license = new License(licenseDir);
+
+                return license.load();
+            })
             .then(() => {
                 const stsEndpoint = config.get('app.stsEndpoint');
                 const serverApiKey = config.get('app.serverApiKey');
@@ -70,9 +96,7 @@ export default {
             })
             .then((response) => {
                 return response.json().then(
-                    (stsResponse) => {
-                        credentialProviderAuthToken = stsResponse.token;
-                    },
+                    (stsResponse) => stsResponse.token,
                     (ex) => {
                         const message = 'Error parsing software update token';
                         logger.error(ex, message);
@@ -80,29 +104,8 @@ export default {
                     }
                 );
             })
-            .then(() => {
-                logger.trace('Looking for lock reference');
-                if (typeof _lock === 'undefined') {
-                    logger.trace(
-                        'Lock reference not found. Creating new lock object.'
-                    );
-
-                    const lockDir = config.get('app.lockDir');
-                    _lock = new Lock(lockDir);
-                } else {
-                    logger.warn('Lock reference exists.');
-                }
-
-                logger.trace('Creating lock on file system');
-                return _lock.create(licenseData);
-            })
-            .then(() => {
-                logger.trace('Initializing lock from file system');
-                return _lock.init();
-            })
-            .then(() => {
-                /// TODO: Check lock here.
-
+            .then((token) => {
+                logger.trace('Initializing software update job');
                 const manifest = license.generateUpdateManifest(licenseData);
                 const callbackEndpoint = config.get('app.job.callbackEndpoint');
                 const credentialProviderEndpoint = config.get(
@@ -110,107 +113,169 @@ export default {
                 );
 
                 const jobDescriptor = {
-                    callbackEndpoint: `${callbackEndpoint}/${_lock.lockId}`,
+                    callbackEndpoint: `${callbackEndpoint}/${_lock!.lockId}`,
                     credentialProviderEndpoint,
-                    credentialProviderAuthToken,
+                    credentialProviderAuthToken: token,
                     manifest
                 };
 
-                logger.trace('Creating software update job', jobDescriptor);
+                logger.trace('Software update job parameters', jobDescriptor);
                 const updateJob = new SoftwareUpdaterJob(jobDescriptor);
 
+                logger.trace('Launching software update job');
                 return updateJob.start();
             })
-            .then(() => {
-                logger.trace('Updating state of lock to indicate job start');
-                return _lock.updateState('RUNNING');
+            .catch((ex) => {
+                logger.trace('Cleaning up lock references');
+                return Promise.try(() => {
+                    if (lockCreated) {
+                        logger.trace('Cleaning up lock from file system');
+                        return _lock!.cleanup();
+                    } else {
+                        logger.trace(
+                            'Lock file not created. No clean up required'
+                        );
+                    }
+                })
+                    .then(() => {
+                        logger.trace('Reseting lock reference');
+                        _lock = undefined;
+                    })
+                    .finally(() => {
+                        logger.trace('Rethrowing exception after cleanup');
+                        throw ex;
+                    });
+            })
+            .finally(() => {
+                logger.trace('Resolve create promise');
+                resolveRef();
             });
     },
 
     /**
-     * Notifies the update process of a message from the update job.
+     * Notifies the update process of messages from the update job.
      *
-     * @param kind The type of message that is being sent. This can be one of
-     *        'log', 'success' or 'fail'.
-     * @param timestamp The timestamp linked to the message.
-     * @param message The message text
+     * @param lockId The id of the lock for which the message is intended
+     * @param messages A list of messages from the update job.
      * @return A promise that is rejected or resolved based on the outcome of
      *         this operation.
      */
-    notify: (
-        kind: string,
-        timestamp: number,
-        message: string
-    ): Promise<any> => {
-        _argValidator.checkEnum(kind, VALID_KINDS, 'Invalid kind (arg #1)');
-        _argValidator.checkNumber(timestamp, 1, 'Invalid timestamp (arg #2)');
-        _argValidator.checkString(message, 1, 'Invalid message (arg #3)');
+    notify: (lockId: string, messages: IJobMessage[]): Promise<any> => {
+        _argValidator.checkString(lockId, 1, 'Invalid lockId (arg #1)');
+        _argValidator.checkArray(messages, 'Invalid messages (arg #2)');
+        messages.forEach((messageRecord) => {
+            _argValidator.checkObject(
+                messageRecord,
+                'Messages contain invalid values'
+            );
+            const { kind, timestamp, message } = messageRecord;
+            _argValidator.checkEnum(
+                kind,
+                VALID_KINDS,
+                'Invalid kind (message.kind)'
+            );
+            _argValidator.checkNumber(
+                timestamp,
+                1,
+                'Invalid timestamp (message.timestamp)'
+            );
+            _argValidator.checkString(
+                message,
+                1,
+                'Invalid message (message.message)'
+            );
+        });
 
         const config = _configProvider.getConfig();
-        const logger = _logger.child({ method: 'launchUpdate' });
+        const logger = _logger.child({ method: 'notify' });
 
-        logger.trace('Received message', { kind, message, timestamp });
+        // Will be initialized during the flow
+        let resolveRef;
 
-        if (kind === 'log') {
-            logger.info('Log message received', {
-                kind,
-                message,
-                timestamp
-            });
-            return Promise.resolve();
-        }
-
-        return Promise.try(() => {
-            logger.trace('Looking for lock reference');
-            if (typeof _lock === 'undefined') {
-                logger.trace(
-                    'Lock reference not found. Creating new lock object.'
-                );
-
-                const lockDir = config.get('app.lockDir');
-                _lock = new Lock(lockDir);
-            } else {
-                logger.warn('Lock reference exists.');
-            }
-
-            if (!_lock.isReady) {
-                return _lock.init();
-            }
-        })
+        return Promise.all([_createPromise, _notifyPromise])
             .then(() => {
-                if (_lock.state !== 'RUNNING') {
-                    const error = `Lock is not in RUNNING state. Current state: [${
-                        _lock.state
-                    }]`;
-                    logger.error(error);
-                    throw new Error(error);
-                }
+                _notifyPromise = new Promise((resolve, reject) => {
+                    resolveRef = resolve;
+                });
 
-                if (kind === 'fail') {
-                    logger.trace('Processing fail message');
-
-                    return _lock.updateState('ERROR');
+                if (!_lock) {
+                    const lockDir = config.get('app.lockDir');
+                    logger.warn('Creating new lock object.', { lockDir });
+                    _lock = new Lock(lockDir);
                 } else {
-                    logger.trace('Processing success message');
-
-                    const licenseDir = config.get('app.licenseDir');
-
-                    logger.trace('Initializing license object', { licenseDir });
-                    const license = new License(licenseDir);
-                    license.setData(_lock.license);
-
-                    logger.trace('Saving updated license data', {
-                        licenseData: _lock.license
-                    });
-
-                    return license.save().then(() => {
-                        logger.trace('License data updated and saved');
-                        return _lock.updateState('DONE');
-                    });
+                    logger.trace('Lock reference already exists');
                 }
+
+                logger.trace('Initializing lock');
+                return _lock!.init();
             })
             .then(() => {
-                return _lock.cleanup();
+                if (_lock!.state !== 'ACTIVE') {
+                    throw new Error(
+                        `Lock is not ACTIVE. Current state: [${_lock!.state}]`
+                    );
+                }
+                if (_lock!.lockId !== lockId) {
+                    logger.warn('Messages do not apply to current lock', {
+                        currentLockId: _lock!.lockId,
+                        messageLockId: lockId
+                    });
+                    logger.debug('Mismatched message', { messages });
+                    throw new Error(
+                        'Lock id mismatch. Messages do not apply to current lock'
+                    );
+                }
+
+                messages.forEach((message) => {
+                    logger.trace('Writing log message');
+                    _lock!.addLog(message);
+
+                    if (message.kind === 'success') {
+                        logger.trace('Processing success message');
+                        _lock!.updateState('DONE');
+                    }
+                    if (message.kind === 'fail') {
+                        logger.trace('Processing fail message');
+                        _lock!.updateState('ERROR');
+                    }
+                });
+                return _lock!.save();
+            })
+            .then(() => {
+                if (_lock!.state === 'DONE') {
+                    const licenseDir = config.get('app.licenseDir');
+                    logger.trace('Initializing license object', {
+                        licenseDir
+                    });
+                    const license = new License(licenseDir);
+                    license.setData(_lock!.license);
+                    logger.trace('Saving updated license data', {
+                        licenseData: _lock!.license
+                    });
+                    return license.save();
+                }
+            })
+            .finally(() => {
+                return Promise.try(() => {
+                    if (_lock!.isReady && _lock!.state !== 'ACTIVE') {
+                        logger.trace('Cleaning up lock file');
+                        return _lock!.cleanup().finally(() => {
+                            logger.trace('Reseting lock reference');
+                            _lock = undefined;
+                        });
+                    } else {
+                        logger.trace(
+                            'Lock file still active. No clean up required'
+                        );
+                    }
+                })
+                    .catch((ex) => {
+                        logger.fatal(ex, 'Error cleaning up lock file');
+                    })
+                    .finally(() => {
+                        logger.trace('Resolve create promise');
+                        resolveRef();
+                    });
             });
     }
 };
