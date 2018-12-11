@@ -7,7 +7,7 @@ import {
 import _loggerProvider from '@vamship/logger';
 
 import _healthRoutes from './health';
-import _manifestRoutes from './manifest';
+import _licenseRoutes from './license';
 import _testRoutes from './test';
 
 const {
@@ -37,10 +37,10 @@ export default {
         });
         app.use('/external/health', _healthRoutes);
 
-        _logger.info('Mounting manifest routes', {
-            path: '/internal/manifest'
+        _logger.info('Mounting license routes', {
+            path: '/internal/license'
         });
-        app.use('/internal/manifest', _manifestRoutes);
+        app.use('/internal/license', _licenseRoutes);
 
         _logger.trace('Handler for routes that do not match any paths');
         app.use((req, res, next) => {

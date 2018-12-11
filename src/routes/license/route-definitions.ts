@@ -1,15 +1,15 @@
 import { IRouteDefinition } from '@vamship/expressjs-routes';
-import getManifestHandler from '../../handlers/get-manifest-handler';
+import updateSystemHandler from '../../handlers/refresh-license-handler';
 
 const routeDefinitions: IRouteDefinition[] = [
     {
-        method: 'GET',
-        path: '/',
-        handler: getManifestHandler,
+        method: 'POST',
+        path: '/refresh',
+        handler: updateSystemHandler,
         inputMapper: {},
         schema: {
             $schema: 'http://json-schema.org/draft-07/schema#',
-            description: 'Schema for get manifest API',
+            description: 'Schema for refresh license API',
             properties: {},
             required: []
         }
