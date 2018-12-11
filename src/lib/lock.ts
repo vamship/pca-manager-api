@@ -281,7 +281,7 @@ export default class Lock {
     }
 
     /**
-     * Checks if the lock has been clenaed up, and throws an error if it has
+     * Checks if the lock has been cleaned up, and throws an error if it has
      * been.
      *
      * @private
