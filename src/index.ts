@@ -13,7 +13,7 @@ const config = configProvider
 const logger = loggerProvider
     .configure('pcaManagerApi', {
         extreme: config.get('log.extremeLogging'),
-        level: config.get('log.logLevel')
+        level: config.get('log.level')
     })
     .getLogger('main');
 
