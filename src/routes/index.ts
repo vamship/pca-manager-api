@@ -10,6 +10,14 @@ import _healthRoutes from './health';
 import _licenseRoutes from './license';
 import _testRoutes from './test';
 
+import CorruptLicenseError from '../lib/corrupt-license-error';
+import LicenseReadError from '../lib/license-read-error';
+import LicenseWriteError from '../lib/license-write-error';
+
+import CorruptLockError from '../lib/corrupt-lock-error';
+import LockReadError from '../lib/lock-read-error';
+import LockWriteError from '../lib/lock-write-error';
+
 const {
     BadRequestError,
     NotFoundError,
@@ -116,6 +124,26 @@ export default {
         app.use((err, req, res, next) => {
             if (err instanceof ForbiddenError) {
                 res.status(403).json({
+                    error: err.message
+                });
+            } else {
+                next(err);
+            }
+        });
+
+        _logger.trace(
+            'Setting up handlers for custom error types for locks and licenses'
+        );
+        app.use((err, req, res, next) => {
+            if (
+                err instanceof LockReadError ||
+                err instanceof LockWriteError ||
+                err instanceof CorruptLockError ||
+                err instanceof LicenseReadError ||
+                err instanceof LicenseWriteError ||
+                err instanceof CorruptLicenseError
+            ) {
+                res.status(500).json({
                     error: err.message
                 });
             } else {
