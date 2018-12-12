@@ -12,9 +12,10 @@
             "lockDir": "./data",
             "licenseDir": "./data",
 
+            "licenseServerEndpoint": "https://license-server",
             "stsEndpoint": "https://sts",
-            "credentialProviderEndpoint": "https://credential-provider",
 
+            "credentialProviderEndpoint": "https://credential-provider",
             "callbackEndpoint": "https://callback"
         },
         "log": {
