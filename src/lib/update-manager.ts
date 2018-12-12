@@ -125,6 +125,12 @@ export default {
                 logger.trace('Launching software update job');
                 return updateJob.start();
             })
+            .then(() => {
+                return {
+                    lockId: _lock.lockId,
+                    state: _lock.state
+                };
+            })
             .catch((ex) => {
                 logger.trace('Cleaning up lock references');
                 return Promise.try(() => {

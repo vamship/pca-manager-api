@@ -534,15 +534,15 @@ describe('[updateManager]', () => {
             const ret = _updateManager.launchUpdate({});
 
             _runUntilTask(Tasks.END);
-            return expect(ret).to.be.fulfilled.then(() => {
-                const createPromise = _updateManagerModule.__get__(
-                    '_createPromise'
-                );
+            return expect(ret).to.be.fulfilled.then((response) => {
                 const lockRef = _updateManagerModule.__get__('_lock');
-                // const cleanupMethod = _lockMock.mocks.cleanup;
-                return expect(createPromise).to.be.fulfilled.then(() => {
-                    expect(lockRef).to.not.be.undefined;
-                    //     expect(cleanupMethod.stub).to.not.have.been.called;
+                const cleanupMethod = _lockMock.mocks.cleanup;
+
+                expect(lockRef).to.not.be.undefined;
+                expect(cleanupMethod.stub).to.not.have.been.called;
+                expect(response).to.deep.equal({
+                    lockId: lockRef.lockId,
+                    state: lockRef.state
                 });
             });
         });
