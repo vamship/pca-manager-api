@@ -16,6 +16,10 @@ import {
     ISoftwareComponent
 } from './types';
 
+import CorruptLicenseError from './corrupt-license-error';
+import LicenseReadError from './license-read-error';
+import LicenseWriteError from './license-write-error';
+
 import licenseSchema from '../schema/license-schema';
 const _checkLicenseSchema = _schemaHelper.createSchemaChecker(
     licenseSchema,
@@ -81,8 +85,7 @@ export default class License {
                     throw new Error(message);
                 }
 
-                this._logger.trace('Validating license data');
-                _checkLicenseSchema(data, true);
+                this._performLicenseSchemaCheck(data);
 
                 this._logger.trace('Setting license data from file');
                 this._data = data;
@@ -91,7 +94,7 @@ export default class License {
                 if (err.code !== 'ENOENT') {
                     const message = 'Error reading license file';
                     this._logger.error(err, message);
-                    throw new Error(message);
+                    throw new LicenseReadError(message);
                 }
                 this._logger.warn(
                     'License file does not exist. Setting data to default value'
@@ -118,7 +121,7 @@ export default class License {
         ).then(undefined, (err) => {
             const message = 'Error writing license file';
             this._logger.error(err, message);
-            throw new Error(message);
+            throw new LicenseWriteError(message);
         });
     }
 
@@ -129,7 +132,7 @@ export default class License {
      */
     public setData(licenseData: ILicense) {
         _argValidator.checkObject(licenseData, 'Invalid licenseData (arg #1)');
-        _checkLicenseSchema(licenseData, true);
+        this._performLicenseSchemaCheck(licenseData);
         this._data = licenseData;
     }
 
@@ -143,7 +146,7 @@ export default class License {
      */
     public generateUpdateManifest(licenseData: ILicense): IJobManifest {
         _argValidator.checkObject(licenseData, 'Invalid licenseData (arg #1)');
-        _checkLicenseSchema(licenseData, true);
+        this._performLicenseSchemaCheck(licenseData);
 
         const { components: newComponents } = licenseData;
         const { components: oldComponents } = this._data;
@@ -244,5 +247,21 @@ export default class License {
             namespace: component.namespace,
             setOptions: component.setOptions
         }));
+    }
+
+    /**
+     * Verifies the structure of license data.
+     *
+     * @private
+     * @param data The license data to validate.
+     */
+    private _performLicenseSchemaCheck(data) {
+        try {
+            this._logger.trace('Validating license data');
+            _checkLicenseSchema(data, true);
+        } catch (ex) {
+            this._logger.error(ex, 'Error validating license data');
+            throw new CorruptLicenseError(ex.message);
+        }
     }
 }

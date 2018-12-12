@@ -12,14 +12,14 @@ import _rewire from 'rewire';
 
 import { testValues as _testValues } from '@vamship/test-utils';
 
-const _licenseWriteErrorModule = _rewire(
-    '../../../src/lib/license-write-error'
+const _licenseReadErrorModule = _rewire(
+    '../../../src/lib/corrupt-license-error'
 );
-const LicenseWriteError = _licenseWriteErrorModule.default;
+const CorruptLicenseError = _licenseReadErrorModule.default;
 
-describe('LicenseWriteError', () => {
-    const ERROR_NAME = 'LicenseWriteError';
-    const ERROR_MESSAGE = 'Error writing license file';
+describe('CorruptLicenseError', () => {
+    const ERROR_NAME = 'CorruptLicenseError';
+    const ERROR_MESSAGE = 'License data is corrupt';
 
     function _getExpectedMessage(message?: string): string {
         message = message || ERROR_MESSAGE;
@@ -28,7 +28,7 @@ describe('LicenseWriteError', () => {
 
     describe('ctor()', () => {
         it('should return an Error object with default property values', () => {
-            const error = new LicenseWriteError();
+            const error = new CorruptLicenseError();
 
             expect(error).to.be.an.instanceOf(Error);
             expect(error.name).to.equal(ERROR_NAME);
@@ -37,7 +37,7 @@ describe('LicenseWriteError', () => {
 
         it('should persist the error message property when specified', () => {
             const message = 'Something went wrong';
-            const error = new LicenseWriteError(message);
+            const error = new CorruptLicenseError(message);
 
             expect(error).to.be.an.instanceOf(Error);
             expect(error.message).to.equal(_getExpectedMessage(message));
@@ -47,7 +47,7 @@ describe('LicenseWriteError', () => {
             const inputs = _testValues.allButString();
 
             inputs.forEach((message) => {
-                const error = new LicenseWriteError(message);
+                const error = new CorruptLicenseError(message);
                 expect(error.message).to.equal(_getExpectedMessage());
             });
         });

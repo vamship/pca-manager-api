@@ -14,6 +14,10 @@ import _rewire from 'rewire';
 import { ObjectMock, testValues as _testValues } from '@vamship/test-utils';
 import { Promise } from 'bluebird';
 
+import CorruptLicenseError from '../../../src/lib/corrupt-license-error';
+import LicenseReadError from '../../../src/lib/license-read-error';
+import LicenseWriteError from '../../../src/lib/license-write-error';
+
 const _licenseModule = _rewire('../../../src/lib/license');
 const License = _licenseModule.default;
 const LICENSE_FILE_NAME = '_license';
@@ -53,7 +57,10 @@ describe('License', () => {
         function _runTest(inputs, expectedError) {
             const result = Promise.map(inputs, (license) => {
                 const ret = invokeFunction(license);
-                return expect(ret).to.be.rejectedWith(expectedError);
+                return expect(ret).to.be.rejectedWith(
+                    CorruptLicenseError,
+                    expectedError
+                );
             });
 
             return expect(result).to.be.fulfilled;
@@ -317,7 +324,7 @@ describe('License', () => {
                 code: 'ESOMETHINGWENTWRONG'
             });
 
-            return expect(ret).to.be.rejectedWith(error);
+            return expect(ret).to.be.rejectedWith(LicenseReadError, error);
         });
 
         it('should fulfill the promise and reset internal data operation fails with ENOENT', () => {
@@ -444,7 +451,7 @@ describe('License', () => {
                 code: 'ESOMETHINGWENTWRONG'
             });
 
-            return expect(ret).to.be.rejectedWith(error);
+            return expect(ret).to.be.rejectedWith(LicenseWriteError, error);
         });
 
         it('should resolve the promise if the file write operation succeeds', () => {
