@@ -19,7 +19,10 @@ const routeDefinitions: IRouteDefinition[] = [
         method: 'POST',
         path: '/notify/:lockId',
         handler: updateSystemHandler,
-        inputMapper: {},
+        inputMapper: {
+            lockId: 'params.lockId',
+            messages: 'body.messages'
+        },
         schema: {
             $schema: 'http://json-schema.org/draft-07/schema#',
             description: 'Schema for refresh license API',

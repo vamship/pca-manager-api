@@ -1,5 +1,7 @@
 import { buildRoutes } from '@vamship/expressjs-routes';
+import bodyParser from 'body-parser';
 import { Router } from 'express';
+
 import routeDefinitions from './route-definitions';
 
 /**
@@ -8,6 +10,10 @@ import routeDefinitions from './route-definitions';
  *
  * @module routes
  */
-const router: Router = buildRoutes(routeDefinitions);
+const router: Router = Router();
+
+router.use(bodyParser.json());
+
+buildRoutes(routeDefinitions, router);
 
 export default router;
