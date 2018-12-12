@@ -127,8 +127,8 @@ export default {
             })
             .then(() => {
                 return {
-                    lockId: _lock.lockId,
-                    state: _lock.state
+                    lockId: _lock!.lockId,
+                    state: _lock!.state
                 };
             })
             .catch((ex) => {

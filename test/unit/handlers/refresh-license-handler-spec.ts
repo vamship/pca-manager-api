@@ -57,15 +57,17 @@ describe('refreshLicenseHandler()', () => {
     function _runUntilTask(depth: Tasks): Promise<any> {
         const fetchMethod = _isomorphicFetchMock.mocks.fetch;
         const jsonMethod = _isomorphicFetchMock.mocks.json;
-        const launchUpdateMethod = _updateManagerMock.mocks.load;
+        const launchUpdateMethod = _updateManagerMock.mocks.launchUpdate;
 
         const fetchResponse = { json: _isomorphicFetchMock.instance.json };
         const licenseData = _isomorphicFetchMock.__data.licenseData;
+        const launchUpdateResponse =
+            _updateManagerMock.__data.launchUpdateResponse;
 
         const actions = [
             () => fetchMethod.resolve(fetchResponse),
             () => jsonMethod.resolve(licenseData),
-            () => launchUpdateMethod.resolve()
+            () => launchUpdateMethod.resolve(launchUpdateResponse)
         ];
 
         return actions
@@ -107,6 +109,12 @@ describe('refreshLicenseHandler()', () => {
         };
 
         _updateManagerMock = new ObjectMock().addPromiseMock('launchUpdate');
+        _updateManagerMock.__data = {
+            launchUpdateResponse: {
+                lockId: _testValues.getString('lockId'),
+                state: _testValues.getString('state')
+            }
+        };
 
         _refreshLicenseHandlerModule.__set__('isomorphic_fetch_1', {
             default: _isomorphicFetchMock.instance.fetch
@@ -222,7 +230,7 @@ describe('refreshLicenseHandler()', () => {
         });
     });
 
-    it('should throw an error if the software update launch fails', () => {
+    it('should reject the promise if the software update launch fails', () => {
         const launchUpdateMethod = _updateManagerMock.mocks.launchUpdate;
         const error = 'something went wrong!';
 
@@ -235,5 +243,21 @@ describe('refreshLicenseHandler()', () => {
         });
 
         return expect(ret).to.be.rejectedWith(error);
+    });
+
+    it('should resolve the promise if the software update launch succeeds', () => {
+        const launchUpdateResponse = {
+            lockId: _testValues.getString('lockId'),
+            state: _testValues.getString('state')
+        };
+        _updateManagerMock.__data.launchUpdateResponse = launchUpdateResponse;
+
+        const ret = _invokeHandler();
+
+        _runUntilTask(Tasks.END);
+
+        return expect(ret).to.be.fulfilled.then((response) => {
+            expect(response).to.deep.equal(launchUpdateResponse);
+        });
     });
 });
