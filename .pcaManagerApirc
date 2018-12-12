@@ -9,14 +9,14 @@
             },
             "serverId": "pca-server-id",
             "serverApiKey": "pca-server-api-key",
-            "lockDir": "./data",
-            "licenseDir": "./data",
+            "lockDir": "./.tmp/locks",
+            "licenseDir": "./.tmp/license",
 
-            "licenseServerEndpoint": "https://license-server",
-            "stsEndpoint": "https://sts",
+            "licenseServerEndpoint": "http://localhost:8001/product-license/server/:serverId/license",
+            "stsEndpoint": "http://localhost:8001/sts/tokens/software-update",
 
-            "credentialProviderEndpoint": "https://credential-provider",
-            "callbackEndpoint": "https://callback"
+            "credentialProviderEndpoint": "http://localhost:8001/software-update/credentials",
+            "callbackEndpoint": "http://localhost:3000/internal/license/notify"
         },
         "log": {
             "level": "trace",
