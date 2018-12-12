@@ -95,6 +95,7 @@ export default {
                 });
             })
             .then((response) => {
+                logger.trace('Parsing sts token');
                 return response.json().then(
                     (stsResponse) => stsResponse.token,
                     (ex) => {
