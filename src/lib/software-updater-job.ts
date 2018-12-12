@@ -62,18 +62,18 @@ export default class SoftwareUpdaterJob {
             manifest
         } = this._jobDescriptor;
 
-        const configMapSpec = [
+        const configMapYaml = [
             'apiVersion: v1',
             'kind: ConfigMap',
             'metadata:',
             '  name: pca-agent-config',
             'data:',
             '  manifest: |',
-            `  ${JSON.stringify(manifest)}`,
+            `    ${JSON.stringify(manifest)}`,
             ''
         ].join('\n');
 
-        const jobSpec = [
+        const jobYaml = [
             'apiVersion: batch/v1',
             'kind: Job',
             'metadata:',
@@ -132,12 +132,16 @@ export default class SoftwareUpdaterJob {
             ''
         ].join('\n');
 
+        this._logger.trace('Update job configmap YAML', {
+            yaml: configMapYaml
+        });
         return _execa('kubectl', ['apply', '-f', '-'], {
-            input: configMapSpec
+            input: configMapYaml
         }).then(
             () => {
+                this._logger.trace('Update job YAML', { yaml: jobYaml });
                 return _execa('kubectl', ['apply', '-f', '-'], {
-                    input: jobSpec
+                    input: jobYaml
                 }).catch((ex) => {
                     this._logger.error(ex, 'Error creating update job');
                     throw new Error('Error creating update job');

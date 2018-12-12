@@ -525,7 +525,7 @@ describe('SoftwareUpdaterJob', () => {
                 '  name: pca-agent-config',
                 'data:',
                 '  manifest: |',
-                `  ${JSON.stringify(jobDescriptor.manifest)}`,
+                `    ${JSON.stringify(jobDescriptor.manifest)}`,
                 ''
             ].join('\n');
 
