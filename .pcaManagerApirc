@@ -6,7 +6,16 @@
             "paths": {
                 "health": "/_health",
                 "error": "/_error"
-            }
+            },
+            "serverId": "pca-server-id",
+            "serverApiKey": "pca-server-api-key",
+            "lockDir": "./data",
+            "licenseDir": "./data",
+
+            "stsEndpoint": "https://sts",
+            "credentialProviderEndpoint": "https://credential-provider",
+
+            "callbackEndpoint": "https://callback"
         },
         "log": {
             "level": "trace",
@@ -14,7 +23,8 @@
         }
     },
     "development": {
-        "app": {}
+        "app": {
+        }
     },
     "test": {
         "app": {

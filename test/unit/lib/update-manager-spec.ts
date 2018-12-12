@@ -41,12 +41,10 @@ describe('[updateManager]', () => {
                 licenseDir: _testValues.getString('licenseDir'),
                 stsEndpoint: _testValues.getString('stsEndpoint'),
                 serverApiKey: _testValues.getString('serverApiKey'),
-                job: {
-                    callbackEndpoint: _testValues.getString('callbackEndpoint'),
-                    credentialProviderEndpoint: _testValues.getString(
-                        'credentialProviderEndpoint'
-                    )
-                }
+                callbackEndpoint: _testValues.getString('callbackEndpoint'),
+                credentialProviderEndpoint: _testValues.getString(
+                    'credentialProviderEndpoint'
+                )
             }
         };
 
@@ -472,8 +470,8 @@ describe('[updateManager]', () => {
                 token: _testValues.getString('token')
             };
 
-            _configMock.__data.app.job.callbackEndpoint = callbackEndpoint;
-            _configMock.__data.app.job.credentialProviderEndpoint = credentialProviderEndpoint;
+            _configMock.__data.app.callbackEndpoint = callbackEndpoint;
+            _configMock.__data.app.credentialProviderEndpoint = credentialProviderEndpoint;
 
             _licenseMock.__updateManifest = manifest;
 

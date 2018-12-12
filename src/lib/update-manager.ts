@@ -107,9 +107,9 @@ export default {
             .then((token) => {
                 logger.trace('Initializing software update job');
                 const manifest = license.generateUpdateManifest(licenseData);
-                const callbackEndpoint = config.get('app.job.callbackEndpoint');
+                const callbackEndpoint = config.get('app.callbackEndpoint');
                 const credentialProviderEndpoint = config.get(
-                    'app.job.credentialProviderEndpoint'
+                    'app.credentialProviderEndpoint'
                 );
 
                 const jobDescriptor = {
