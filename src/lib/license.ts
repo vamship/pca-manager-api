@@ -57,12 +57,6 @@ export default class License {
 
         this._readFileMethod = Promise.promisify(_fs.readFile.bind(_fs));
         this._writeFileMethod = Promise.promisify(_fs.writeFile.bind(_fs));
-
-        /// TODO: Delete this.
-        this._logger.trace('foo', {
-            data: this._data,
-            writeFileMethod: this._writeFileMethod
-        });
     }
 
     /**
