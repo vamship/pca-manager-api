@@ -1,11 +1,12 @@
 import { IRouteDefinition } from '@vamship/expressjs-routes';
-import updateSystemHandler from '../../handlers/refresh-license-handler';
+import refreshLicenseHandler from '../../handlers/refresh-license-handler';
+import updateCallbackHandler from '../../handlers/update-callback-handler';
 
 const routeDefinitions: IRouteDefinition[] = [
     {
         method: 'POST',
         path: '/refresh',
-        handler: updateSystemHandler,
+        handler: refreshLicenseHandler,
         inputMapper: {},
         schema: {
             $schema: 'http://json-schema.org/draft-07/schema#',
@@ -18,7 +19,7 @@ const routeDefinitions: IRouteDefinition[] = [
     {
         method: 'POST',
         path: '/notify/:lockId',
-        handler: updateSystemHandler,
+        handler: updateCallbackHandler,
         inputMapper: {
             lockId: 'params.lockId',
             messages: 'body.messages'
