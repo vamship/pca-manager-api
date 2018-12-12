@@ -7,6 +7,10 @@ import { Promise } from 'bluebird';
 import _shortId from 'shortId';
 import { ILogger } from './types';
 
+import CorruptLockError from './corrupt-lock-error';
+import LockReadError from './lock-read-error';
+import LockWriteError from './lock-write-error';
+
 const LOCK_FILE_NAME = '_lock';
 
 /**
@@ -145,36 +149,48 @@ export default class Lock {
 
         const lockFile = _path.join(this._lockDir, LOCK_FILE_NAME);
         this._logger.trace('Reading lock file', { lockFile });
-        return this._readFileMethod(lockFile).then(
-            (data) => {
+        return this._readFileMethod(lockFile)
+            .catch((ex) => {
+                const message = 'Error reading lock file';
+                this._logger.error(ex, message);
+                throw new LockReadError(message);
+            })
+            .then((data) => {
                 try {
                     this._logger.trace('Parsing lock file contents');
                     data = JSON.parse(data);
                 } catch (ex) {
-                    const message = 'Error parsing lock file';
-                    this._logger.error(ex, message);
-                    throw new Error(message);
+                    this._logger.error(ex, 'Error parsing lock file');
+                    throw new CorruptLockError('Error parsing lock file');
                 }
 
-                this._logger.trace('Validating lock file contents');
-                _argValidator.checkString(
-                    data.lockId,
-                    1,
-                    'Lock file does not define a valid lockId'
-                );
-                _argValidator.checkString(
-                    data.state,
-                    1,
-                    'Lock file does not define a valid state'
-                );
-                _argValidator.checkObject(
-                    data.license,
-                    'Lock file does not define a valid license'
-                );
-                _argValidator.checkArray(
-                    data.logs,
-                    'Lock file does not define valid logs'
-                );
+                try {
+                    this._logger.trace('Validating lock file contents');
+                    _argValidator.checkString(
+                        data.lockId,
+                        1,
+                        'Lock file does not define a valid lockId'
+                    );
+                    _argValidator.checkString(
+                        data.state,
+                        1,
+                        'Lock file does not define a valid state'
+                    );
+                    _argValidator.checkObject(
+                        data.license,
+                        'Lock file does not define a valid license'
+                    );
+                    _argValidator.checkArray(
+                        data.logs,
+                        'Lock file does not define valid logs'
+                    );
+                } catch (ex) {
+                    this._logger.error(
+                        ex,
+                        'Error processing lock file contents'
+                    );
+                    throw new CorruptLockError(ex.message);
+                }
 
                 this._logger.trace('Setting lock properties from lockfile');
                 this._lockId = data.lockId;
@@ -182,13 +198,7 @@ export default class Lock {
                 this._license = data.license;
                 this._logs = data.logs;
                 this._isInitialized = true;
-            },
-            (ex) => {
-                const message = 'Error reading lock file';
-                this._logger.error(ex, message);
-                throw new Error(message);
-            }
-        );
+            });
     }
 
     /**
@@ -265,7 +275,7 @@ export default class Lock {
             .catch((ex) => {
                 const message = 'Error cleaning up lock file';
                 this._logger.error(ex, message);
-                throw new Error(message);
+                throw new LockWriteError(message);
             });
     }
 
@@ -322,7 +332,7 @@ export default class Lock {
         ).catch((ex) => {
             const message = 'Error writing to lock file';
             this._logger.error(ex, message);
-            throw new Error(message);
+            throw new LockWriteError(message);
         });
     }
 }

@@ -17,6 +17,10 @@ import {
     testValues as _testValues
 } from '@vamship/test-utils';
 
+import CorruptLockError from '../../../src/lib/corrupt-lock-error';
+import LockReadError from '../../../src/lib/lock-read-error';
+import LockWriteError from '../../../src/lib/lock-write-error';
+
 const _lockModule = _rewire('../../../src/lib/lock');
 const Lock = _lockModule.default;
 const LOCK_FILE_NAME = '_lock';
@@ -143,7 +147,7 @@ describe('Lock', () => {
                 code: 'ESOMETHINGWENTWRONG'
             });
 
-            return expect(ret).to.be.rejectedWith(error);
+            return expect(ret).to.be.rejectedWith(LockReadError, error);
         });
 
         it('should reject the promise if the lockfile contents cannot be parsed', () => {
@@ -155,7 +159,7 @@ describe('Lock', () => {
             const callback = readFileMethod.stub.args[0][1];
             callback(null, 'bad payload');
 
-            return expect(ret).to.be.rejectedWith(error);
+            return expect(ret).to.be.rejectedWith(CorruptLockError, error);
         });
 
         it('should throw an error if the lockfile does not define a valid lockId', () => {
@@ -173,7 +177,7 @@ describe('Lock', () => {
                 };
                 callback(null, JSON.stringify(payload));
 
-                return expect(ret).to.be.rejectedWith(error);
+                return expect(ret).to.be.rejectedWith(CorruptLockError, error);
             });
 
             return expect(Promise.all(promises)).to.be.fulfilled;
@@ -195,7 +199,7 @@ describe('Lock', () => {
                 };
                 callback(null, JSON.stringify(payload));
 
-                return expect(ret).to.be.rejectedWith(error);
+                return expect(ret).to.be.rejectedWith(CorruptLockError, error);
             });
 
             return expect(Promise.all(promises)).to.be.fulfilled;
@@ -218,7 +222,7 @@ describe('Lock', () => {
                 };
                 callback(null, JSON.stringify(payload));
 
-                return expect(ret).to.be.rejectedWith(error);
+                return expect(ret).to.be.rejectedWith(CorruptLockError, error);
             });
 
             return expect(Promise.all(promises)).to.be.fulfilled;
@@ -244,7 +248,7 @@ describe('Lock', () => {
                 };
                 callback(null, JSON.stringify(payload));
 
-                return expect(ret).to.be.rejectedWith(error);
+                return expect(ret).to.be.rejectedWith(CorruptLockError, error);
             });
 
             return expect(Promise.all(promises)).to.be.fulfilled;
@@ -608,7 +612,10 @@ describe('Lock', () => {
 
                 writeCallback('something went wrong');
 
-                return expect(ret).to.have.been.rejectedWith(error);
+                return expect(ret).to.have.been.rejectedWith(
+                    LockWriteError,
+                    error
+                );
             });
         });
 
@@ -691,7 +698,10 @@ describe('Lock', () => {
 
                 renameCallback('something went wrong');
 
-                return expect(ret).to.have.been.rejectedWith(error);
+                return expect(ret).to.have.been.rejectedWith(
+                    LockWriteError,
+                    error
+                );
             });
         });
 
@@ -804,7 +814,7 @@ describe('Lock', () => {
                 code: 'ESOMETHINGWENTWRONG'
             });
 
-            return expect(ret).to.be.rejectedWith(error);
+            return expect(ret).to.be.rejectedWith(LockWriteError, error);
         });
 
         it('should resolve the promise if the lock file creation succeeds', () => {
