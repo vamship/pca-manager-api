@@ -33,4 +33,21 @@ describe('[/health routes]', () => {
                 });
         });
     });
+
+    describe('GET /external/health/ready', () => {
+        it('should return a valid JSON response when invoked', () => {
+            const path = _buildRoute();
+            return request(endpoint)
+                .get(path)
+                .then((res) => {
+                    expect(res.status).to.equal(200);
+                    expect(res.header['content-type']).to.match(
+                        /^application\/json/
+                    );
+                    expect(res.body).to.deep.equal({
+                        status: 'ok'
+                    });
+                });
+        });
+    });
 });
