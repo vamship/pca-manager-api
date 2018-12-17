@@ -4,7 +4,7 @@ import _path from 'path';
 import { argValidator as _argValidator } from '@vamship/arg-utils';
 import _loggerProvider from '@vamship/logger';
 import { Promise } from 'bluebird';
-import _shortId from 'shortId';
+import _shortId from 'shortid';
 import { ILogger } from './types';
 
 import CorruptLockError from './corrupt-lock-error';
