@@ -31,7 +31,6 @@ export default class SoftwareUpdaterJob {
     private _jobDescriptor: IJobDescriptor;
 
     /**
-     *
      * @param descriptor A job descriptor that defines the parameters of the job
      *        to be executed.
      */
@@ -135,14 +134,22 @@ export default class SoftwareUpdaterJob {
         this._logger.trace('Update job configmap YAML', {
             yaml: configMapYaml
         });
-        return _execa('kubectl', ['apply', '-f', '-'], {
-            input: configMapYaml
-        }).then(
+        return _execa(
+            'kubectl',
+            ['apply', '--namespace', 'kube-system', '-f', '-'],
+            {
+                input: configMapYaml
+            }
+        ).then(
             () => {
                 this._logger.trace('Update job YAML', { yaml: jobYaml });
-                return _execa('kubectl', ['apply', '-f', '-'], {
-                    input: jobYaml
-                }).catch((ex) => {
+                return _execa(
+                    'kubectl',
+                    ['apply', '--namespace', 'kube-system', '-f', '-'],
+                    {
+                        input: jobYaml
+                    }
+                ).catch((ex) => {
                     this._logger.error(ex, 'Error creating update job');
                     throw new Error('Error creating update job');
                 });

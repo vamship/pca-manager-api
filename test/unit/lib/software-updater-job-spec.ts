@@ -537,6 +537,8 @@ describe('SoftwareUpdaterJob', () => {
             expect(execaMethod.stub.args[0][0]).to.equal('kubectl');
             expect(execaMethod.stub.args[0][1]).to.deep.equal([
                 'apply',
+                '--namespace',
+                'kube-system',
                 '-f',
                 '-'
             ]);
@@ -637,6 +639,8 @@ describe('SoftwareUpdaterJob', () => {
                     expect(execaMethod.stub.args[1][0]).to.equal('kubectl');
                     expect(execaMethod.stub.args[1][1]).to.deep.equal([
                         'apply',
+                        '--namespace',
+                        'kube-system',
                         '-f',
                         '-'
                     ]);
