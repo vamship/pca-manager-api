@@ -259,9 +259,9 @@ module.exports = function(grunt) {
             dockerBuild: {
                 command: `docker build --rm --tag ${
                     PROJECT.dockerTag
-                } ${__dirname} --build-arg APP_NAME=${
+                } ${__dirname} --build-arg APP_NAME=${_camelcase(
                     PROJECT.unscopedName
-                } --build-arg APP_VERSION=${
+                )} --build-arg APP_VERSION=${
                     PROJECT.version
                 } --build-arg BUILD_TIMESTAMP=${Date.now()}`
             },
