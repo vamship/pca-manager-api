@@ -22,7 +22,7 @@ const HELM_CA_CERT_SECRET = 'pca-helm-ca-certificate';
 const HELM_CERT_SECRET = 'pca-helm-certificate';
 
 // Name of the container that will run the update job
-const PCA_UPDATE_AGENT_CONTAINER = 'vamship/pca-update-agent:2.0.0';
+const PCA_UPDATE_AGENT_CONTAINER = 'vamship/pca-update-agent:2.0.1';
 
 describe('SoftwareUpdaterJob', () => {
     function _generateJobDescriptor(): IJobDescriptor {
