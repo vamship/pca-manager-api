@@ -15,8 +15,6 @@ LABEL org.label-schema.name=$APP_NAME \
 # https://aur.archlinux.org/packages/kubectl-bin/
 ENV KUBE_LATEST_VERSION="v1.12.0"
 
-RUN apk upd
-
 RUN apk update \
     && apk add --no-cache ca-certificates \
     && wget -q https://storage.googleapis.com/kubernetes-release/release/${KUBE_LATEST_VERSION}/bin/linux/amd64/kubectl \
