@@ -1,4 +1,4 @@
-FROM node:8.11.3-alpine
+FROM node:8.14.0-alpine
 
 ARG APP_NAME
 ARG BUILD_TIMESTAMP
@@ -15,7 +15,10 @@ LABEL org.label-schema.name=$APP_NAME \
 # https://aur.archlinux.org/packages/kubectl-bin/
 ENV KUBE_LATEST_VERSION="v1.12.0"
 
-RUN apk add --no-cache ca-certificates bash git \
+RUN apk upd
+
+RUN apk update \
+    && apk add --no-cache ca-certificates \
     && wget -q https://storage.googleapis.com/kubernetes-release/release/${KUBE_LATEST_VERSION}/bin/linux/amd64/kubectl \
        -O /usr/local/bin/kubectl \
     && chmod +x /usr/local/bin/kubectl
