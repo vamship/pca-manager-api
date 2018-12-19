@@ -1,6 +1,6 @@
 {
     "name": "@vamship/pca-manager-api",
-    "version": "1.0.0-8",
+    "version": "1.0.0-9",
     "description": "Manager API service that can be used to remotely deploy and update software on the server",
     "main": "dist/index.js",
     "scripts": {
