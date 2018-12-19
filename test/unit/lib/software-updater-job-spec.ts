@@ -29,6 +29,9 @@ const HELM_CERT_SECRET = 'pca-helm-certificate';
 // Name of the container that will run the update job
 const PCA_UPDATE_AGENT_CONTAINER = 'vamship/pca-update-agent:2.0.1';
 
+// Update agent job prefix.
+const UPDATE_AGENT_JOB_PREFIX = `pca-agent-job-`;
+
 describe('SoftwareUpdaterJob', () => {
     function _generateJobDescriptor(): IJobDescriptor {
         const count = 10;
@@ -612,7 +615,7 @@ describe('SoftwareUpdaterJob', () => {
                 'apiVersion: batch/v1',
                 'kind: Job',
                 'metadata:',
-                `  name: pca-agent-job-${jobId}`,
+                `  name: ${UPDATE_AGENT_JOB_PREFIX}${jobId}`,
                 'spec:',
                 '  backoffLimit: 4',
                 '  activeDeadlineSeconds: 300',
@@ -752,11 +755,10 @@ describe('SoftwareUpdaterJob', () => {
             expect(execaMethod.stub.args[0][1]).to.deep.equal([
                 '--namespace',
                 'kube-system',
-                '--ignore-not-found',
-                'true',
+                '--ignore-not-found=true',
                 'delete',
                 'job',
-                jobId
+                `${UPDATE_AGENT_JOB_PREFIX}${jobId}`
             ]);
         });
 

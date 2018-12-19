@@ -21,6 +21,9 @@ const HELM_CERT_SECRET = 'pca-helm-certificate';
 // Name of the container that will run the update job
 const PCA_UPDATE_AGENT_CONTAINER = 'vamship/pca-update-agent:2.0.1';
 
+// Update agent job prefix.
+const UPDATE_AGENT_JOB_PREFIX = `pca-agent-job-`;
+
 /**
  * Class that can be used to launch a software updater job. Creates the
  * necessary Kubernetes config and job specification based on initialization
@@ -84,7 +87,7 @@ export default class SoftwareUpdaterJob {
             'apiVersion: batch/v1',
             'kind: Job',
             'metadata:',
-            `  name: pca-agent-job-${this._jobId}`,
+            `  name: ${UPDATE_AGENT_JOB_PREFIX}${this._jobId}`,
             'spec:',
             '  backoffLimit: 4',
             '  activeDeadlineSeconds: 300',
@@ -178,11 +181,10 @@ export default class SoftwareUpdaterJob {
         return _execa('kubectl', [
             '--namespace',
             'kube-system',
-            '--ignore-not-found',
-            'true',
+            '--ignore-not-found=true',
             'delete',
             'job',
-            this._jobId
+            `${UPDATE_AGENT_JOB_PREFIX}${this._jobId}`
         ]).then(
             () => {
                 this._logger.trace('Job successfully deleted');
