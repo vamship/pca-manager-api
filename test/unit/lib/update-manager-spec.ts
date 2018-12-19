@@ -132,7 +132,7 @@ describe('[updateManager]', () => {
         }
 
         function _runUntilTask(depth: Tasks): Promise<any> {
-            const cleanupMethod = _lockMock.mocks.cleanup;
+            const cleanupLockMethod = _lockMock.mocks.cleanup;
             const createMethod = _lockMock.mocks.create;
             const initMethod = _lockMock.mocks.init;
             const fetchMethod = _isomorphicFetchMock.mocks.fetch;
@@ -145,7 +145,7 @@ describe('[updateManager]', () => {
                 _isomorphicFetchMock.__data.stsResponse;
 
             const actions = [
-                () => cleanupMethod.resolve(),
+                () => cleanupLockMethod.resolve(),
                 () => createMethod.resolve(),
                 () => initMethod.resolve(),
                 () => loadMethod.resolve(),
@@ -171,17 +171,17 @@ describe('[updateManager]', () => {
                     '_createPromise'
                 );
                 const lockRef = _updateManagerModule.__get__('_lock');
-                const cleanupMethod = _lockMock.mocks.cleanup;
+                const cleanupLockMethod = _lockMock.mocks.cleanup;
 
                 return expect(createPromise).to.be.fulfilled.then(() => {
                     expect(lockRef).to.be.undefined;
                     if (cleanupLockFile) {
-                        expect(cleanupMethod.stub).to.have.been.calledOnce;
+                        expect(cleanupLockMethod.stub).to.have.been.calledOnce;
                         expect(
-                            cleanupMethod.stub
+                            cleanupLockMethod.stub
                         ).to.have.been.calledWithExactly();
                     } else {
-                        expect(cleanupMethod.stub).to.not.have.been.called;
+                        expect(cleanupLockMethod.stub).to.not.have.been.called;
                     }
                 });
             };
@@ -455,8 +455,26 @@ describe('[updateManager]', () => {
             });
         });
 
-        it('should create a new software updater job with the generated update manifest', () => {
+        it('should create a new software updater job with the lock id', () => {
             const softwareUpdaterJobCtor = _softwareUpdaterJobMock.ctor;
+            const lockId = _testValues.getString('lockId');
+
+            _lockMock.instance.lockId = lockId;
+
+            expect(softwareUpdaterJobCtor).to.not.have.been.called;
+
+            _updateManager.launchUpdate({});
+
+            return _runUntilTask(Tasks.START_JOB).then(() => {
+                expect(softwareUpdaterJobCtor).to.have.been.calledOnce;
+                expect(softwareUpdaterJobCtor).to.have.been.calledWithNew;
+                expect(softwareUpdaterJobCtor.args[0]).to.have.length(1);
+                expect(softwareUpdaterJobCtor.args[0]).to.deep.equal([lockId]);
+            });
+        });
+
+        it('should launch the software updater job generated update manifest', () => {
+            const startJobMethod = _softwareUpdaterJobMock.mocks.start;
 
             const manifest = {
                 foo: _testValues.getString('foo')
@@ -479,35 +497,21 @@ describe('[updateManager]', () => {
 
             _lockMock.instance.lockId = lockId;
 
-            expect(softwareUpdaterJobCtor).to.not.have.been.called;
-
-            _updateManager.launchUpdate({});
-
-            return _runUntilTask(Tasks.START_JOB).then(() => {
-                expect(softwareUpdaterJobCtor).to.have.been.calledOnce;
-                expect(softwareUpdaterJobCtor).to.have.been.calledWithNew;
-                expect(softwareUpdaterJobCtor.args[0]).to.have.length(1);
-
-                const descriptor = softwareUpdaterJobCtor.args[0][0];
-                expect(descriptor).to.deep.equal({
-                    callbackEndpoint: `${callbackEndpoint}/${lockId}`,
-                    credentialProviderEndpoint,
-                    credentialProviderAuthToken: stsResponse.token,
-                    manifest
-                });
-            });
-        });
-
-        it('should launch the software updater job', () => {
-            const startJobMethod = _softwareUpdaterJobMock.mocks.start;
-
             expect(startJobMethod.stub).to.not.have.been.called;
 
             _updateManager.launchUpdate({});
 
             return _runUntilTask(Tasks.START_JOB).then(() => {
                 expect(startJobMethod.stub).to.have.been.calledOnce;
-                expect(startJobMethod.stub).to.have.been.calledWithExactly();
+                expect(startJobMethod.stub.args[0]).to.have.length(1);
+
+                const descriptor = startJobMethod.stub.args[0][0];
+                expect(descriptor).to.deep.equal({
+                    callbackEndpoint: `${callbackEndpoint}/${lockId}`,
+                    credentialProviderEndpoint,
+                    credentialProviderAuthToken: stsResponse.token,
+                    manifest
+                });
             });
         });
 
@@ -534,10 +538,10 @@ describe('[updateManager]', () => {
             _runUntilTask(Tasks.END);
             return expect(ret).to.be.fulfilled.then((response) => {
                 const lockRef = _updateManagerModule.__get__('_lock');
-                const cleanupMethod = _lockMock.mocks.cleanup;
+                const cleanupLockMethod = _lockMock.mocks.cleanup;
 
                 expect(lockRef).to.not.be.undefined;
-                expect(cleanupMethod.stub).to.not.have.been.called;
+                expect(cleanupLockMethod.stub).to.not.have.been.called;
                 expect(response).to.deep.equal({
                     lockId: lockRef.lockId,
                     state: lockRef.state
@@ -581,6 +585,7 @@ describe('[updateManager]', () => {
             SAVE_LOCK,
             SAVE_LICENSE,
             CLEANUP_LOCK,
+            CLEANUP_JOB,
             END
         }
 
@@ -590,7 +595,8 @@ describe('[updateManager]', () => {
             const initMethod = _lockMock.mocks.init;
             const saveLicenseMethod = _licenseMock.mocks.save;
             const saveLockMethod = _lockMock.mocks.save;
-            const cleanupMethod = _lockMock.mocks.cleanup;
+            const cleanupLockMethod = _lockMock.mocks.cleanup;
+            const cleanupJobMethod = _softwareUpdaterJobMock.mocks.cleanup;
 
             const actions = [
                 () => createFlowMethod.resolve(),
@@ -598,7 +604,8 @@ describe('[updateManager]', () => {
                 () => initMethod.resolve(),
                 () => saveLockMethod.resolve(),
                 () => saveLicenseMethod.resolve(),
-                () => cleanupMethod.resolve()
+                () => cleanupLockMethod.resolve(),
+                () => cleanupJobMethod.resolve()
             ];
 
             return actions
@@ -612,23 +619,42 @@ describe('[updateManager]', () => {
                 .then(_asyncHelper.wait(1));
         }
 
-        function _verifyCleanup(cleanupLockFile: boolean): () => void {
+        function _verifyCleanup(expectCleanup: boolean): () => void {
             return () => {
                 const notifyPromise = _updateManagerModule.__get__(
                     '_notifyPromise'
                 );
                 const lockRef = _updateManagerModule.__get__('_lock');
-                const cleanupMethod = _lockMock.mocks.cleanup;
+                const cleanupLockMethod = _lockMock.mocks.cleanup;
+                const softwareUpdaterJobCtor = _softwareUpdaterJobMock.ctor;
+                const cleanupJobMethod = _softwareUpdaterJobMock.mocks.cleanup;
 
                 return expect(notifyPromise).to.be.fulfilled.then(() => {
-                    if (cleanupLockFile) {
-                        expect(cleanupMethod.stub).to.have.been.calledOnce;
+                    if (expectCleanup) {
+                        expect(cleanupLockMethod.stub).to.have.been.calledOnce;
                         expect(
-                            cleanupMethod.stub
+                            cleanupLockMethod.stub
                         ).to.have.been.calledWithExactly();
+
+                        expect(softwareUpdaterJobCtor).to.have.been.calledOnce;
+                        expect(softwareUpdaterJobCtor).to.have.been
+                            .calledWithNew;
+                        expect(
+                            softwareUpdaterJobCtor
+                        ).to.have.been.calledWithExactly(
+                            _lockMock.instance.lockId
+                        );
+
+                        expect(cleanupJobMethod.stub).to.have.been.calledOnce;
+                        expect(
+                            cleanupJobMethod.stub
+                        ).to.have.been.calledWithExactly();
+
                         expect(lockRef).to.be.undefined;
                     } else {
-                        expect(cleanupMethod.stub).to.not.have.been.called;
+                        expect(softwareUpdaterJobCtor).to.not.have.been.called;
+                        expect(cleanupLockMethod.stub).to.not.have.been.called;
+                        expect(cleanupJobMethod.stub).to.not.have.been.called;
                         expect(lockRef).to.not.be.undefined;
                     }
                 });
@@ -854,18 +880,21 @@ describe('[updateManager]', () => {
         });
 
         it('should reject the promise if the lock is not in ACTIVE state', () => {
-            const cleanupMethod = _lockMock.mocks.cleanup;
+            const cleanupLockMethod = _lockMock.mocks.cleanup;
+            const cleanupJobMethod = _softwareUpdaterJobMock.mocks.cleanup;
             const state = 'ERROR';
             const error = `Lock is not ACTIVE. Current state: [${state}]`;
 
             const lock = _initLock(state);
 
-            expect(cleanupMethod.stub).to.not.have.been.called;
+            expect(cleanupLockMethod.stub).to.not.have.been.called;
+            expect(cleanupJobMethod.stub).to.not.have.been.called;
 
             const ret = _invokeNotify(lock.lockId);
 
             _runUntilTask(Tasks.SAVE_LOCK).then(() => {
-                cleanupMethod.resolve();
+                cleanupLockMethod.resolve();
+                cleanupJobMethod.resolve();
             });
 
             return expect(ret)
@@ -873,19 +902,43 @@ describe('[updateManager]', () => {
                 .then(_verifyCleanup(true));
         });
 
-        it('should handle cleanup errors gracefully', () => {
-            const cleanupMethod = _lockMock.mocks.cleanup;
+        it('should handle cleanup lock errors gracefully', () => {
+            const cleanupLockMethod = _lockMock.mocks.cleanup;
+            const cleanupJobMethod = _softwareUpdaterJobMock.mocks.cleanup;
             const state = 'ERROR';
             const error = `Lock is not ACTIVE. Current state: [${state}]`;
 
             const lock = _initLock(state);
 
-            expect(cleanupMethod.stub).to.not.have.been.called;
+            expect(cleanupLockMethod.stub).to.not.have.been.called;
 
             const ret = _invokeNotify(lock.lockId);
 
             _runUntilTask(Tasks.SAVE_LOCK).then(() => {
-                cleanupMethod.reject('someting went wrong!');
+                cleanupLockMethod.reject('someting went wrong!');
+                cleanupJobMethod.resolve();
+            });
+
+            return expect(ret)
+                .to.be.rejectedWith(error)
+                .then(_verifyCleanup(true));
+        });
+
+        it('should handle cleanup job errors gracefully', () => {
+            const cleanupLockMethod = _lockMock.mocks.cleanup;
+            const cleanupJobMethod = _softwareUpdaterJobMock.mocks.cleanup;
+            const state = 'ERROR';
+            const error = `Lock is not ACTIVE. Current state: [${state}]`;
+
+            const lock = _initLock(state);
+
+            expect(cleanupLockMethod.stub).to.not.have.been.called;
+
+            const ret = _invokeNotify(lock.lockId);
+
+            _runUntilTask(Tasks.SAVE_LOCK).then(() => {
+                cleanupJobMethod.reject('someting went wrong!');
+                cleanupLockMethod.resolve();
             });
 
             return expect(ret)
@@ -1002,7 +1055,8 @@ describe('[updateManager]', () => {
 
         it('should reject the promise if the save method fails', () => {
             const saveMethod = _lockMock.mocks.save;
-            const cleanupMethod = _lockMock.mocks.cleanup;
+            const cleanupLockMethod = _lockMock.mocks.cleanup;
+            const cleanupJobMethod = _softwareUpdaterJobMock.mocks.cleanup;
             const error = 'something went wrong!';
 
             const lock = _initLock();
@@ -1012,7 +1066,8 @@ describe('[updateManager]', () => {
 
             _runUntilTask(Tasks.SAVE_LOCK).then(() => {
                 saveMethod.reject(error).catch((ex) => {
-                    cleanupMethod.resolve();
+                    cleanupLockMethod.resolve();
+                    cleanupJobMethod.resolve();
                 });
             });
 
@@ -1021,7 +1076,7 @@ describe('[updateManager]', () => {
                 .then(_verifyCleanup(true));
         });
 
-        it('should create a new license object for messages with kind = fail', () => {
+        it('should not create a new license object for messages with kind = fail', () => {
             const licenseCtor = _licenseMock.ctor;
             const setDataMethod = _licenseMock.mocks.setData;
             const saveMethod = _licenseMock.mocks.save;
@@ -1062,7 +1117,7 @@ describe('[updateManager]', () => {
             });
         });
 
-        it('should update the license data with data from the current lock', () => {
+        it('should update the license data with data from the current lock for kind=success', () => {
             const setDataMethod = _licenseMock.mocks.setData;
 
             const lock = _initLock();
@@ -1103,7 +1158,8 @@ describe('[updateManager]', () => {
 
         it('should reject the promise if license save fails', () => {
             const saveMethod = _licenseMock.mocks.save;
-            const cleanupMethod = _lockMock.mocks.cleanup;
+            const cleanupLockMethod = _lockMock.mocks.cleanup;
+            const cleanupJobMethod = _softwareUpdaterJobMock.mocks.cleanup;
             const error = 'something went wrong!';
 
             const lock = _initLock();
@@ -1113,7 +1169,8 @@ describe('[updateManager]', () => {
 
             _runUntilTask(Tasks.SAVE_LICENSE).then(() => {
                 saveMethod.reject(error).catch((ex) => {
-                    cleanupMethod.resolve();
+                    cleanupLockMethod.resolve();
+                    cleanupJobMethod.resolve();
                 });
             });
 
@@ -1122,8 +1179,8 @@ describe('[updateManager]', () => {
                 .then(_verifyCleanup(true));
         });
 
-        it('should resolve the promise if license save succeeds', () => {
-            const cleanupMethod = _lockMock.mocks.cleanup;
+        it('should resolve the promise if cleanup succeeds', () => {
+            const cleanupLockMethod = _lockMock.mocks.cleanup;
 
             const lock = _initLock();
             const messages = _generateMessages(['success']);
@@ -1131,7 +1188,7 @@ describe('[updateManager]', () => {
             const ret = _invokeNotify(lock.lockId, messages);
 
             _runUntilTask(Tasks.END).then(() => {
-                cleanupMethod.resolve();
+                cleanupLockMethod.resolve();
             });
 
             return expect(ret).to.be.fulfilled.then(_verifyCleanup(true));

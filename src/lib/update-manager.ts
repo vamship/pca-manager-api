@@ -112,19 +112,20 @@ export default {
                 const credentialProviderEndpoint = config.get(
                     'app.credentialProviderEndpoint'
                 );
+                const lockId = _lock!.lockId;
 
                 const jobDescriptor = {
-                    callbackEndpoint: `${callbackEndpoint}/${_lock!.lockId}`,
+                    callbackEndpoint: `${callbackEndpoint}/${lockId}`,
                     credentialProviderEndpoint,
                     credentialProviderAuthToken: token,
                     manifest
                 };
 
-                logger.trace('Software update job parameters', jobDescriptor);
-                const updateJob = new SoftwareUpdaterJob(jobDescriptor);
+                logger.trace('Creating software update job object', { lockId });
+                const updateJob = new SoftwareUpdaterJob(lockId);
 
-                logger.trace('Launching software update job');
-                return updateJob.start();
+                logger.trace('Launching software update job', jobDescriptor);
+                return updateJob.start(jobDescriptor);
             })
             .then(() => {
                 return {
@@ -265,9 +266,29 @@ export default {
             .finally(() => {
                 return Promise.try(() => {
                     if (_lock!.isReady && _lock!.state !== 'ACTIVE') {
+                        logger.trace('Creating software update job object', {
+                            lockId: _lock!.lockId
+                        });
+                        const updateJob = new SoftwareUpdaterJob(_lock!.lockId);
+
+                        logger.trace('Cleaning up update job');
+                        const cleanupJobPromise = updateJob
+                            .cleanup()
+                            .catch((ex) => {
+                                logger.error(ex, 'Error cleaning up job');
+                            });
+
                         logger.trace('Cleaning up lock file');
-                        return _lock!.cleanup().finally(() => {
-                            logger.trace('Reseting lock reference');
+                        const cleanupLockPromise = _lock!
+                            .cleanup()
+                            .catch((ex) => {
+                                logger.error(ex, 'Error cleaning up lock');
+                            });
+
+                        return Promise.all([
+                            cleanupJobPromise,
+                            cleanupLockPromise
+                        ]).finally(() => {
                             _lock = undefined;
                         });
                     } else {
