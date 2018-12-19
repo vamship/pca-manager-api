@@ -121,8 +121,17 @@ export default {
                     manifest
                 };
 
-                logger.trace('Creating software update job object', { lockId });
-                const updateJob = new SoftwareUpdaterJob(lockId);
+                const updateAgentContainer = config.get(
+                    'app.updateAgentContainer'
+                );
+                logger.trace('Creating software update job object', {
+                    lockId,
+                    updateAgentContainer
+                });
+                const updateJob = new SoftwareUpdaterJob(
+                    lockId,
+                    updateAgentContainer
+                );
 
                 logger.trace('Launching software update job', jobDescriptor);
                 return updateJob.start(jobDescriptor);
@@ -266,10 +275,18 @@ export default {
             .finally(() => {
                 return Promise.try(() => {
                     if (_lock!.isReady && _lock!.state !== 'ACTIVE') {
+                        const updateAgentContainer = config.get(
+                            'app.updateAgentContainer'
+                        );
                         logger.trace('Creating software update job object', {
-                            lockId: _lock!.lockId
+                            lockId: _lock!.lockId,
+                            updateAgentContainer
                         });
-                        const updateJob = new SoftwareUpdaterJob(_lock!.lockId);
+
+                        const updateJob = new SoftwareUpdaterJob(
+                            _lock!.lockId,
+                            updateAgentContainer
+                        );
 
                         logger.trace('Cleaning up update job');
                         const cleanupJobPromise = updateJob

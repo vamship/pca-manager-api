@@ -44,6 +44,9 @@ describe('[updateManager]', () => {
                 callbackEndpoint: _testValues.getString('callbackEndpoint'),
                 credentialProviderEndpoint: _testValues.getString(
                     'credentialProviderEndpoint'
+                ),
+                updateAgentContainer: _testValues.getString(
+                    'updateAgentContainer'
                 )
             }
         };
@@ -457,7 +460,12 @@ describe('[updateManager]', () => {
 
         it('should create a new software updater job with the lock id', () => {
             const softwareUpdaterJobCtor = _softwareUpdaterJobMock.ctor;
+            const updateAgentContainer = _testValues.getString(
+                'updateAgentContainer'
+            );
             const lockId = _testValues.getString('lockId');
+
+            _configMock.__data.app.updateAgentContainer = updateAgentContainer;
 
             _lockMock.instance.lockId = lockId;
 
@@ -468,8 +476,10 @@ describe('[updateManager]', () => {
             return _runUntilTask(Tasks.START_JOB).then(() => {
                 expect(softwareUpdaterJobCtor).to.have.been.calledOnce;
                 expect(softwareUpdaterJobCtor).to.have.been.calledWithNew;
-                expect(softwareUpdaterJobCtor.args[0]).to.have.length(1);
-                expect(softwareUpdaterJobCtor.args[0]).to.deep.equal([lockId]);
+                expect(softwareUpdaterJobCtor).to.have.been.calledWithExactly(
+                    lockId,
+                    updateAgentContainer
+                );
             });
         });
 
@@ -642,7 +652,8 @@ describe('[updateManager]', () => {
                         expect(
                             softwareUpdaterJobCtor
                         ).to.have.been.calledWithExactly(
-                            _lockMock.instance.lockId
+                            _lockMock.instance.lockId,
+                            _configMock.__data.app.updateAgentContainer
                         );
 
                         expect(cleanupJobMethod.stub).to.have.been.calledOnce;
