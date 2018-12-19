@@ -11,6 +11,7 @@
             "serverApiKey": "pca-server-api-key",
             "lockDir": "./.tmp/locks",
             "licenseDir": "./.tmp/license",
+            "updateAgentContainer": "vamship/pca-update-agent:2.0.2-0",
 
             "licenseServerEndpoint": "http://localhost:8001/product-license/server/:serverId/license",
             "stsEndpoint": "http://localhost:8001/sts/tokens/software-update",
