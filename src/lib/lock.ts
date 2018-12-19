@@ -4,7 +4,6 @@ import _path from 'path';
 import { argValidator as _argValidator } from '@vamship/arg-utils';
 import _loggerProvider from '@vamship/logger';
 import { Promise } from 'bluebird';
-import _shortId from 'shortid';
 import { ILogger } from './types';
 
 import CorruptLockError from './corrupt-lock-error';
@@ -118,7 +117,7 @@ export default class Lock {
         if (this._isInitialized) {
             throw new Error('Lock already initialized');
         }
-        const lockId = _shortId.generate();
+        const lockId = Date.now().toString();
         const state = 'ACTIVE';
         return this._writeLockFile(
             lockId,
