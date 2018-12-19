@@ -18,9 +18,6 @@ const _checkJobDescriptorSchema = _schemaHelper.createSchemaChecker(
 const HELM_CA_CERT_SECRET = 'pca-helm-ca-certificate';
 const HELM_CERT_SECRET = 'pca-helm-certificate';
 
-// Name of the container that will run the update job
-const PCA_UPDATE_AGENT_CONTAINER = 'vamship/pca-update-agent:2.0.1';
-
 // Update agent job prefix.
 const UPDATE_AGENT_JOB_PREFIX = `pca-agent-job-`;
 
@@ -32,16 +29,26 @@ const UPDATE_AGENT_JOB_PREFIX = `pca-agent-job-`;
 export default class SoftwareUpdaterJob {
     private _logger: ILogger;
     private _jobId: string;
+    private _updateAgentContainer: string;
 
     /**
      * @param jobId A unique id associated with the job
+     * @param updateAgentContainer The container to use when spawning the update
+     *        job.
      */
-    constructor(jobId: string) {
+    constructor(jobId: string, updateAgentContainer: string) {
         _argValidator.checkString(jobId, 1, 'Invalid jobId (arg #1)');
         if (!jobId.match(/^[0-9a-z\-]+$/)) {
             throw new Error('Invalid jobId (arg #1)');
         }
+        _argValidator.checkString(
+            updateAgentContainer,
+            1,
+            'Invalid updateAgentContainer (arg #2)'
+        );
+
         this._jobId = jobId;
+        this._updateAgentContainer = updateAgentContainer;
 
         this._logger = _loggerProvider.getLogger('software-updater-job', {});
         this._logger.trace('SoftwareUpdaterJob initialized', { jobId });
@@ -97,7 +104,7 @@ export default class SoftwareUpdaterJob {
             '      restartPolicy: Never',
             '      containers:',
             '        - name: pca-agent',
-            `          image: ${PCA_UPDATE_AGENT_CONTAINER}`,
+            `          image: ${this._updateAgentContainer}`,
             '          env:',
             '            - name: pcaUpdateAgent_production__callbackEndpoint',
             `              value: '${callbackEndpoint}'`,

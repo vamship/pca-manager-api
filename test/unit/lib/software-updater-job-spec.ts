@@ -26,9 +26,6 @@ const SoftwareUpdaterJob = _softwareUpdaterJobModule.default;
 const HELM_CA_CERT_SECRET = 'pca-helm-ca-certificate';
 const HELM_CERT_SECRET = 'pca-helm-certificate';
 
-// Name of the container that will run the update job
-const PCA_UPDATE_AGENT_CONTAINER = 'vamship/pca-update-agent:2.0.1';
-
 // Update agent job prefix.
 const UPDATE_AGENT_JOB_PREFIX = `pca-agent-job-`;
 
@@ -85,9 +82,12 @@ describe('SoftwareUpdaterJob', () => {
             .replace(/_/g, '-');
     }
 
-    function _createJob(jobId?: string) {
+    function _createJob(jobId?: string, updateAgentContainer?: string) {
         jobId = jobId || _generateJobId();
-        return new SoftwareUpdaterJob(jobId);
+        updateAgentContainer =
+            updateAgentContainer ||
+            _testValues.getString('updateAgentContainer');
+        return new SoftwareUpdaterJob(jobId, updateAgentContainer);
     }
 
     let _execaMock;
@@ -127,8 +127,26 @@ describe('SoftwareUpdaterJob', () => {
             });
         });
 
+        it('should throw an error if invoked without a valid job container', () => {
+            const inputs = _testValues.allButString('');
+            const error = 'Invalid updateAgentContainer (arg #2)';
+
+            inputs.forEach((updateAgentContainer) => {
+                const wrapper = () => {
+                    const jobId = _generateJobId();
+                    return new SoftwareUpdaterJob(jobId, updateAgentContainer);
+                };
+
+                expect(wrapper).to.throw(error);
+            });
+        });
+
         it('should expose the expected properties and methods', () => {
-            const job = new SoftwareUpdaterJob(_generateJobId());
+            const jobId = _generateJobId();
+            const updateAgentContainer = _testValues.getString(
+                'updateAgentContainer'
+            );
+            const job = new SoftwareUpdaterJob(jobId, updateAgentContainer);
 
             expect(job).to.be.an('object');
             expect(job.start).to.be.a('function');
@@ -603,7 +621,10 @@ describe('SoftwareUpdaterJob', () => {
         it('should use kubectl to launch the update job once the configmap has been created', () => {
             const jobDescriptor = _generateJobDescriptor();
             const jobId = _generateJobId();
-            const job = _createJob(jobId);
+            const updateAgentContainer = _testValues.getString(
+                'updateAgentContainer'
+            );
+            const job = _createJob(jobId, updateAgentContainer);
             const execaMethod = _execaMock.mocks.execa;
             const {
                 callbackEndpoint,
@@ -625,7 +646,7 @@ describe('SoftwareUpdaterJob', () => {
                 '      restartPolicy: Never',
                 '      containers:',
                 '        - name: pca-agent',
-                `          image: ${PCA_UPDATE_AGENT_CONTAINER}`,
+                `          image: ${updateAgentContainer}`,
                 '          env:',
                 '            - name: pcaUpdateAgent_production__callbackEndpoint',
                 `              value: '${callbackEndpoint}'`,
