@@ -28,38 +28,46 @@ const PCA_UPDATE_AGENT_CONTAINER = 'vamship/pca-update-agent:2.0.1';
  */
 export default class SoftwareUpdaterJob {
     private _logger: ILogger;
-    private _jobDescriptor: IJobDescriptor;
+    private _jobId: string;
 
     /**
+     * @param jobId A unique id associated with the job
+     */
+    constructor(jobId: string) {
+        _argValidator.checkString(jobId, 1, 'Invalid jobId (arg #1)');
+        if (!jobId.match(/^[0-9a-z\-]+$/)) {
+            throw new Error('Invalid jobId (arg #1)');
+        }
+        this._jobId = jobId;
+
+        this._logger = _loggerProvider.getLogger('software-updater-job', {});
+        this._logger.trace('SoftwareUpdaterJob initialized', { jobId });
+    }
+
+    /**
+     * Configures and starts a Kubernetes job to perform upgrades on the server.
+     *
      * @param descriptor A job descriptor that defines the parameters of the job
      *        to be executed.
+     * @returns A promise that is rejected/resolved based on successful launch
+     *          of the job.
      */
-    constructor(jobDescriptor: IJobDescriptor) {
+    public start(jobDescriptor: IJobDescriptor): Promise<any> {
         _argValidator.checkObject(
             jobDescriptor,
             'Invalid jobDescriptor (arg #1)'
         );
         _checkJobDescriptorSchema(jobDescriptor, true);
 
-        this._jobDescriptor = jobDescriptor;
-
-        this._logger = _loggerProvider.getLogger('software-updater-job', {});
-        this._logger.trace('SoftwareUpdaterJob initialized');
-    }
-
-    /**
-     * Configures and starts a Kubernetes job to perform upgrades on the server.
-     */
-    public start() {
         this._logger.trace('Starting update job', {
-            jobDescriptor: this._jobDescriptor
+            jobDescriptor
         });
         const {
             callbackEndpoint,
             credentialProviderEndpoint,
             credentialProviderAuthToken,
             manifest
-        } = this._jobDescriptor;
+        } = jobDescriptor;
 
         const configMapYaml = [
             'apiVersion: v1',
@@ -76,7 +84,7 @@ export default class SoftwareUpdaterJob {
             'apiVersion: batch/v1',
             'kind: Job',
             'metadata:',
-            '  name: pca-agent-job',
+            `  name: pca-agent-job-${this._jobId}`,
             'spec:',
             '  backoffLimit: 4',
             '  activeDeadlineSeconds: 300',
@@ -157,6 +165,31 @@ export default class SoftwareUpdaterJob {
             (err) => {
                 this._logger.error(err, 'Error creating configmap');
                 throw new Error('Error creating ConfigMap for update job');
+            }
+        );
+    }
+
+    /**
+     * Cleans up an existing job. If the job does not exist, this command will
+     * be ignored.
+     */
+    public cleanup() {
+        this._logger.trace('Deleting job');
+        return _execa('kubectl', [
+            '--namespace',
+            'kube-system',
+            '--ignore-not-found',
+            'true',
+            'delete',
+            'job',
+            this._jobId
+        ]).then(
+            () => {
+                this._logger.trace('Job successfully deleted');
+            },
+            (err) => {
+                this._logger.error(err, 'Error deleting job');
+                throw new Error('Error deleting update job');
             }
         );
     }

@@ -1,6 +1,11 @@
 import _chai from 'chai';
+import _chaiAsPromised from 'chai-as-promised';
 import 'mocha';
+import _sinon from 'sinon';
+import _sinonChai from 'sinon-chai';
 
+_chai.use(_chaiAsPromised);
+_chai.use(_sinonChai);
 const expect = _chai.expect;
 
 import {
@@ -70,9 +75,16 @@ describe('SoftwareUpdaterJob', () => {
         };
     }
 
-    function _createJob(descriptor?: IJobDescriptor) {
-        descriptor = Object.assign(_generateJobDescriptor(), descriptor);
-        return new SoftwareUpdaterJob(descriptor);
+    function _generateJobId() {
+        return _testValues
+            .getString('jobId')
+            .toLowerCase()
+            .replace(/_/g, '-');
+    }
+
+    function _createJob(jobId?: string) {
+        jobId = jobId || _generateJobId();
+        return new SoftwareUpdaterJob(jobId);
     }
 
     let _execaMock;
@@ -86,13 +98,49 @@ describe('SoftwareUpdaterJob', () => {
     });
 
     describe('ctor()', () => {
+        it('should throw an error if invoked without a valid job id', () => {
+            const inputs = _testValues.allButString('');
+            const error = 'Invalid jobId (arg #1)';
+
+            inputs.forEach((jobId) => {
+                const wrapper = () => {
+                    return new SoftwareUpdaterJob(jobId);
+                };
+
+                expect(wrapper).to.throw(error);
+            });
+        });
+
+        it('should throw an error if the job id has illegal characters', () => {
+            const inputs = ['bad_job_id', 'BAD-JOB-ID', 'baD', 'Job', 'i_d'];
+            const error = 'Invalid jobId (arg #1)';
+
+            inputs.forEach((jobId) => {
+                const wrapper = () => {
+                    return new SoftwareUpdaterJob(jobId);
+                };
+
+                expect(wrapper).to.throw(error);
+            });
+        });
+
+        it('should expose the expected properties and methods', () => {
+            const job = new SoftwareUpdaterJob(_generateJobId());
+
+            expect(job).to.be.an('object');
+            expect(job.start).to.be.a('function');
+            expect(job.cleanup).to.be.a('function');
+        });
+    });
+
+    describe('start()', () => {
         it('should throw an error if invoked without a valid job descriptor', () => {
             const inputs = _testValues.allButObject();
             const error = 'Invalid jobDescriptor (arg #1)';
 
             inputs.forEach((jobInfo) => {
                 const wrapper = () => {
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -108,7 +156,7 @@ describe('SoftwareUpdaterJob', () => {
                     const jobInfo = Object.assign(_generateJobDescriptor(), {
                         callbackEndpoint
                     });
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -124,7 +172,7 @@ describe('SoftwareUpdaterJob', () => {
                     const jobInfo = Object.assign(_generateJobDescriptor(), {
                         credentialProviderEndpoint
                     });
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -140,7 +188,7 @@ describe('SoftwareUpdaterJob', () => {
                     const jobInfo = Object.assign(_generateJobDescriptor(), {
                         credentialProviderAuthToken
                     });
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -156,7 +204,7 @@ describe('SoftwareUpdaterJob', () => {
                     const jobInfo = Object.assign(_generateJobDescriptor(), {
                         manifest
                     });
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -171,7 +219,7 @@ describe('SoftwareUpdaterJob', () => {
                 const wrapper = () => {
                     const jobInfo = _generateJobDescriptor();
                     jobInfo.manifest.privateContainerRepos = privateContainerRepos;
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -188,7 +236,7 @@ describe('SoftwareUpdaterJob', () => {
                     jobInfo.manifest.privateContainerRepos = new Array(10)
                         .fill(0)
                         .map(() => repo);
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -205,7 +253,7 @@ describe('SoftwareUpdaterJob', () => {
                     jobInfo.manifest.privateContainerRepos.forEach((repo) => {
                         repo.repoUri = repoUri;
                     });
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -222,7 +270,7 @@ describe('SoftwareUpdaterJob', () => {
                     jobInfo.manifest.privateContainerRepos.forEach((repo) => {
                         repo.targets = targets;
                     });
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -240,7 +288,7 @@ describe('SoftwareUpdaterJob', () => {
                         repo.targets = new Array(10).fill(0).map(() => target);
                     });
 
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -260,7 +308,7 @@ describe('SoftwareUpdaterJob', () => {
                         });
                     });
 
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -280,7 +328,7 @@ describe('SoftwareUpdaterJob', () => {
                         });
                     });
 
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -300,7 +348,7 @@ describe('SoftwareUpdaterJob', () => {
                         });
                     });
 
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -315,7 +363,7 @@ describe('SoftwareUpdaterJob', () => {
                 const wrapper = () => {
                     const jobInfo = _generateJobDescriptor();
                     jobInfo.manifest.uninstallRecords = uninstallRecords;
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -332,7 +380,7 @@ describe('SoftwareUpdaterJob', () => {
                     jobInfo.manifest.uninstallRecords = new Array(10)
                         .fill(0)
                         .map(() => record);
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -347,7 +395,7 @@ describe('SoftwareUpdaterJob', () => {
                 const wrapper = () => {
                     const jobInfo = _generateJobDescriptor();
                     jobInfo.manifest.installRecords = installRecords;
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -364,7 +412,7 @@ describe('SoftwareUpdaterJob', () => {
                     jobInfo.manifest.installRecords = new Array(10)
                         .fill(0)
                         .map(() => record);
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -381,7 +429,7 @@ describe('SoftwareUpdaterJob', () => {
                     jobInfo.manifest.installRecords.forEach((record) => {
                         record.releaseName = releaseName;
                     });
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -398,7 +446,7 @@ describe('SoftwareUpdaterJob', () => {
                     jobInfo.manifest.installRecords.forEach((record) => {
                         record.chartName = chartName;
                     });
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -415,7 +463,7 @@ describe('SoftwareUpdaterJob', () => {
                     jobInfo.manifest.installRecords.forEach((record) => {
                         record.namespace = namespace;
                     });
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -432,7 +480,7 @@ describe('SoftwareUpdaterJob', () => {
                     jobInfo.manifest.installRecords.forEach((record) => {
                         record.setOptions = setOptions;
                     });
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -451,7 +499,7 @@ describe('SoftwareUpdaterJob', () => {
                             .fill(0)
                             .map(() => setOptions);
                     });
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -470,7 +518,7 @@ describe('SoftwareUpdaterJob', () => {
                             option.key = key;
                         });
                     });
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
@@ -489,33 +537,24 @@ describe('SoftwareUpdaterJob', () => {
                             option.value = value;
                         });
                     });
-                    return new SoftwareUpdaterJob(jobInfo);
+                    return _createJob().start(jobInfo);
                 };
 
                 expect(wrapper).to.throw(error);
             });
         });
 
-        it('should expose the expected properties and methods', () => {
-            const job = new SoftwareUpdaterJob(_generateJobDescriptor());
-
-            expect(job).to.be.an('object');
-            expect(job.start).to.be.a('function');
-        });
-    });
-
-    describe('start()', () => {
         it('should return a promise when invoked', () => {
             const job = _createJob();
 
-            const ret = job.start();
+            const ret = job.start(_generateJobDescriptor());
             expect(ret).to.be.an('object');
             expect(ret.then).to.be.a('function');
         });
 
         it('should use kubectl to create a job configmap', () => {
             const jobDescriptor = _generateJobDescriptor();
-            const job = _createJob(jobDescriptor);
+            const job = _createJob();
             const execaMethod = _execaMock.mocks.execa;
 
             const expectedConfigMap = [
@@ -530,7 +569,7 @@ describe('SoftwareUpdaterJob', () => {
             ].join('\n');
 
             expect(execaMethod.stub).to.not.have.been.called;
-            job.start();
+            job.start(jobDescriptor);
 
             expect(execaMethod.stub).to.have.been.calledOnce;
             expect(execaMethod.stub.args[0]).to.have.length(3);
@@ -552,7 +591,7 @@ describe('SoftwareUpdaterJob', () => {
             const job = _createJob();
             const execaMethod = _execaMock.mocks.execa;
 
-            const ret = job.start();
+            const ret = job.start(_generateJobDescriptor());
             execaMethod.reject('something went wrong!');
 
             return expect(ret).to.be.rejectedWith(error);
@@ -560,7 +599,8 @@ describe('SoftwareUpdaterJob', () => {
 
         it('should use kubectl to launch the update job once the configmap has been created', () => {
             const jobDescriptor = _generateJobDescriptor();
-            const job = _createJob(jobDescriptor);
+            const jobId = _generateJobId();
+            const job = _createJob(jobId);
             const execaMethod = _execaMock.mocks.execa;
             const {
                 callbackEndpoint,
@@ -572,7 +612,7 @@ describe('SoftwareUpdaterJob', () => {
                 'apiVersion: batch/v1',
                 'kind: Job',
                 'metadata:',
-                '  name: pca-agent-job',
+                `  name: pca-agent-job-${jobId}`,
                 'spec:',
                 '  backoffLimit: 4',
                 '  activeDeadlineSeconds: 300',
@@ -628,7 +668,7 @@ describe('SoftwareUpdaterJob', () => {
             ].join('\n');
 
             expect(execaMethod.stub).to.not.have.been.called;
-            job.start();
+            job.start(jobDescriptor);
 
             execaMethod.resolve(undefined, 0);
             return _asyncHelper
@@ -655,7 +695,7 @@ describe('SoftwareUpdaterJob', () => {
             const job = _createJob();
             const execaMethod = _execaMock.mocks.execa;
 
-            const ret = job.start();
+            const ret = job.start(_generateJobDescriptor());
 
             execaMethod.resolve(undefined, 0);
             return execaMethod
@@ -676,10 +716,68 @@ describe('SoftwareUpdaterJob', () => {
             const job = _createJob();
             const execaMethod = _execaMock.mocks.execa;
 
-            const ret = job.start();
+            const ret = job.start(_generateJobDescriptor());
 
             execaMethod.resolve(undefined, 0);
             execaMethod.resolve(undefined, 1);
+
+            return _asyncHelper
+                .wait(1)()
+                .then(() => {
+                    return expect(ret).to.be.fulfilled;
+                });
+        });
+    });
+
+    describe('cleanup()', () => {
+        it('should return a promise when invoked', () => {
+            const job = _createJob();
+
+            const ret = job.cleanup();
+            expect(ret).to.be.an('object');
+            expect(ret.then).to.be.a('function');
+        });
+
+        it('should use kubectl to delete an existing job', () => {
+            const jobId = _generateJobId();
+            const job = _createJob(jobId);
+            const execaMethod = _execaMock.mocks.execa;
+
+            expect(execaMethod.stub).to.not.have.been.called;
+            job.cleanup();
+
+            expect(execaMethod.stub).to.have.been.calledOnce;
+            expect(execaMethod.stub.args[0]).to.have.length(2);
+            expect(execaMethod.stub.args[0][0]).to.equal('kubectl');
+            expect(execaMethod.stub.args[0][1]).to.deep.equal([
+                '--namespace',
+                'kube-system',
+                '--ignore-not-found',
+                'true',
+                'delete',
+                'job',
+                jobId
+            ]);
+        });
+
+        it('should reject the promise if configmap creation fails', () => {
+            const error = 'Error deleting update job';
+            const job = _createJob();
+            const execaMethod = _execaMock.mocks.execa;
+
+            const ret = job.cleanup();
+            execaMethod.reject('something went wrong!');
+
+            return expect(ret).to.be.rejectedWith(error);
+        });
+
+        it('should resolve the promise if job deletion succeeds', () => {
+            const job = _createJob();
+            const execaMethod = _execaMock.mocks.execa;
+
+            const ret = job.cleanup();
+
+            execaMethod.resolve(undefined, 0);
 
             return _asyncHelper
                 .wait(1)()
