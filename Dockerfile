@@ -15,11 +15,21 @@ LABEL org.label-schema.name=$APP_NAME \
 # https://aur.archlinux.org/packages/kubectl-bin/
 ENV KUBE_LATEST_VERSION="v1.12.0"
 
+# Note: Latest version of helm may be found at:
+# https://github.com/kubernetes/helm/releases
+ENV HELM_VERSION="v2.11.0"
+
 RUN apk update \
     && apk add --no-cache ca-certificates \
     && wget -q https://storage.googleapis.com/kubernetes-release/release/${KUBE_LATEST_VERSION}/bin/linux/amd64/kubectl \
        -O /usr/local/bin/kubectl \
-    && chmod +x /usr/local/bin/kubectl
+    && chmod +x /usr/local/bin/kubectl \
+    && wget -q https://storage.googleapis.com/kubernetes-helm/helm-${HELM_VERSION}-linux-amd64.tar.gz \
+       -O - | tar -xzO linux-amd64/helm > /usr/local/bin/helm \
+    && chmod +x /usr/local/bin/helm \
+    && mkdir -p /root/.helm \
+    && helm init --client-only \
+    && helm repo update
 
 RUN mkdir -p app/logs
 
