@@ -21,8 +21,8 @@ const _licenseModule = _rewire('../../../src/lib/license');
 const License = _licenseModule.default;
 
 describe('License', () => {
-    function _createLicense() {
-        return new License();
+    function _createLicense(excludePatterns: string[] = []) {
+        return new License(excludePatterns);
     }
 
     function _generateLicenseData() {
@@ -261,8 +261,45 @@ describe('License', () => {
     });
 
     describe('ctor()', () => {
+        it('should throw an error if invoked without a valid exclude pattern list', () => {
+            const inputs = _testValues.allButArray();
+            const error = 'Invalid excludePatterns (arg #1)';
+
+            inputs.forEach((patterns) => {
+                const wrapper = () => {
+                    return new License(patterns);
+                };
+
+                expect(wrapper).to.throw(error);
+            });
+        });
+
+        it('should throw an error if any of the exclude patterns is not a valid string', () => {
+            const inputs = _testValues.allButString();
+
+            inputs.forEach((pattern) => {
+                const index = _testValues.getNumber(1, 10);
+                const patterns = new Array(index)
+                    .fill(0)
+                    .map(() => _testValues.getString('pattern'))
+                    .concat([pattern])
+                    .concat(
+                        new Array(_testValues.getNumber(1, 10))
+                            .fill(0)
+                            .map(() => _testValues.getString('pattern'))
+                    );
+
+                const error = `Invalid exclude pattern at index ${index}`;
+                const wrapper = () => {
+                    return new License(patterns);
+                };
+
+                expect(wrapper).to.throw(error);
+            });
+        });
+
         it('should expose the expected properties and methods', () => {
-            const license = new License();
+            const license = new License([]);
 
             expect(license).to.be.an('object');
 
@@ -324,32 +361,6 @@ describe('License', () => {
             execaMethod.resolve({
                 stdout: newData.components
                     .map((component) => component.releaseName)
-                    .join('\n')
-            });
-
-            return expect(ret).to.be.fulfilled.then(() => {
-                expect(license._data).to.deep.equal(newData);
-                expect(license._data).to.not.equal(newData);
-            });
-        });
-
-        it('should omit any component starting with "pca-" from the component list', () => {
-            const license = _createLicense();
-            const execaMethod = _execaMock.mocks.execa;
-
-            const newData = {
-                components: ['foo', 'bar', 'baz'].map((releaseName) => ({
-                    releaseName
-                }))
-            };
-
-            license._data = newData;
-
-            const ret = license.load();
-            execaMethod.resolve({
-                stdout: newData.components
-                    .map((component) => component.releaseName)
-                    .concat(['pca-foo', 'pca-bar'])
                     .join('\n')
             });
 
@@ -609,6 +620,41 @@ describe('License', () => {
                     expectedUninstallRecords
                 );
             });
+
+            it('should omit any components that match exclude patterns', () => {
+                const excludePatterns = ['^excluded.*', '.*excluded$'];
+                const license = _createLicense(excludePatterns);
+                const oldLicenseData = _generateLicenseData();
+
+                const expectedUninstallRecords = oldLicenseData.components.map(
+                    (component) => component.releaseName
+                );
+
+                // Add some excluded components.
+                new Array(_testValues.getNumber(1, 10))
+                    .fill(0)
+                    .map(() => _testValues.getString('excluded')) // Should match both patterns
+                    .forEach((releaseName) =>
+                        oldLicenseData.components.push({
+                            releaseName,
+                            chartName: _testValues.getString('chartName'),
+                            namespace: _testValues.getString('namespace'),
+                            setOptions: [],
+                            containerRepos: [],
+                            serviceAccounts: []
+                        })
+                    );
+
+                license._data = oldLicenseData;
+
+                const licenseData = _generateLicenseData();
+
+                const manifest = license.generateUpdateManifest(licenseData);
+
+                expect(manifest.uninstallRecords).to.deep.equal(
+                    expectedUninstallRecords
+                );
+            });
         });
 
         describe('[installRecords]', () => {
@@ -645,7 +691,9 @@ describe('License', () => {
             it('should include components even if they already exist in the current license', () => {
                 const license = _createLicense();
                 const oldLicenseData = _generateLicenseData();
-                license._data = oldLicenseData;
+                license._data = {
+                    components: oldLicenseData.components
+                };
 
                 const licenseData = _generateLicenseData();
 
@@ -665,6 +713,53 @@ describe('License', () => {
                         setOptions: component.setOptions
                     })
                 );
+                expect(manifest.installRecords).to.deep.equal(
+                    expectedInstallRecords
+                );
+            });
+
+            it('should exclude components that match any of the exclude patterns', () => {
+                const excludePatterns = ['^excluded.*', '.*excluded$'];
+                const license = _createLicense(excludePatterns);
+                const oldLicenseData = _generateLicenseData();
+                license._data = {
+                    components: oldLicenseData.components
+                };
+
+                const licenseData = _generateLicenseData();
+
+                oldLicenseData.components
+                    .filter((component, index) => index % 2)
+                    .forEach((component) => {
+                        licenseData.components.push(component);
+                    });
+
+                const expectedInstallRecords = licenseData.components.map(
+                    (component) => ({
+                        releaseName: component.releaseName,
+                        chartName: component.chartName,
+                        namespace: component.namespace,
+                        setOptions: component.setOptions
+                    })
+                );
+
+                // Add some excluded components.
+                new Array(_testValues.getNumber(1, 10))
+                    .fill(0)
+                    .map(() => _testValues.getString('excluded')) // Should match both patterns
+                    .forEach((releaseName) =>
+                        licenseData.components.push({
+                            releaseName,
+                            chartName: _testValues.getString('chartName'),
+                            namespace: _testValues.getString('namespace'),
+                            setOptions: [],
+                            containerRepos: [],
+                            serviceAccounts: []
+                        })
+                    );
+
+                const manifest = license.generateUpdateManifest(licenseData);
+
                 expect(manifest.installRecords).to.deep.equal(
                     expectedInstallRecords
                 );

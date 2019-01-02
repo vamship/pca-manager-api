@@ -34,16 +34,35 @@ import _execa from 'execa';
 export default class License {
     private _logger: ILogger;
     private _data: ILicense;
+    private _excludePatterns: RegExp[];
 
     /**
+     * @param excludePatterns A list of patterns that can be used to identify
+     *        components that will be excluded from the software update flow.
      */
-    constructor() {
+    constructor(excludePatterns: string[]) {
+        _argValidator.checkArray(
+            excludePatterns,
+            'Invalid excludePatterns (arg #1)'
+        );
+        excludePatterns.forEach((pattern, index) => {
+            _argValidator.checkString(
+                pattern,
+                0,
+                `Invalid exclude pattern at index ${index}`
+            );
+        });
+
+        this._excludePatterns = excludePatterns.map(
+            (pattern) => new RegExp(pattern)
+        );
+
         this._data = {
             components: []
         };
 
         this._logger = _loggerProvider.getLogger('license');
-        this._logger.trace('License initialized');
+        this._logger.trace('License initialized', { excludePatterns });
     }
 
     /**
@@ -62,7 +81,6 @@ export default class License {
                 this._logger.trace('Splitting component list into array');
                 const components = data.stdout
                     .split('\n')
-                    .filter((component) => !component.startsWith('pca-'))
                     .map((releaseName) => ({ releaseName }));
 
                 this._logger.trace('Setting license data from file');
@@ -161,6 +179,14 @@ export default class License {
      */
     private _buildUninstallRecordList(oldComponents, newComponents): string[] {
         return oldComponents
+            .filter(
+                (component) =>
+                    !this._excludePatterns.reduce(
+                        (result, pattern) =>
+                            result || pattern.test(component.releaseName),
+                        false
+                    )
+            )
             .filter((oldComp) => {
                 const compIndex = newComponents.findIndex(
                     (newComp) => newComp.releaseName === oldComp.releaseName
@@ -183,12 +209,21 @@ export default class License {
         oldComponents,
         newComponents
     ): IInstallRecord[] {
-        return newComponents.map((component) => ({
-            releaseName: component.releaseName,
-            chartName: component.chartName,
-            namespace: component.namespace,
-            setOptions: component.setOptions
-        }));
+        return newComponents
+            .map((component) => ({
+                releaseName: component.releaseName,
+                chartName: component.chartName,
+                namespace: component.namespace,
+                setOptions: component.setOptions
+            }))
+            .filter(
+                (component) =>
+                    !this._excludePatterns.reduce(
+                        (result, pattern) =>
+                            result || pattern.test(component.releaseName),
+                        false
+                    )
+            );
     }
 
     /**

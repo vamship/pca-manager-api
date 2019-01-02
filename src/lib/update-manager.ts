@@ -49,6 +49,10 @@ export default {
         let license;
 
         const lockDir = config.get('app.lockDir');
+        const excludePatterns = config
+            .get('app.excludePatterns')
+            .split(',')
+            .map((pattern) => pattern.trim());
 
         logger.trace('Creating new lock object.', { lockDir });
         _lock = new Lock(lockDir);
@@ -69,7 +73,7 @@ export default {
             })
             .then(() => {
                 logger.trace('Initializing license object');
-                license = new License();
+                license = new License(excludePatterns);
 
                 return license.load();
             })

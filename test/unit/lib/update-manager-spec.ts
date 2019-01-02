@@ -37,6 +37,10 @@ describe('[updateManager]', () => {
         );
         _configMock.__data = {
             app: {
+                excludePatterns: new Array(3)
+                    .fill(0)
+                    .map(() => _testValues.getString('excludePattern'))
+                    .join(','),
                 lockDir: _testValues.getString('lockDir'),
                 stsEndpoint: _testValues.getString('stsEndpoint'),
                 serverApiKey: _testValues.getString('serverApiKey'),
@@ -319,6 +323,13 @@ describe('[updateManager]', () => {
 
         it('should instantiate a new license object with the specified license data', () => {
             const licenseCtor = _licenseMock.ctor;
+            const excludedPatternString = '^excluded.* ,.*excluded$';
+
+            _configMock.__data.app.excludePatterns = excludedPatternString;
+
+            const expectedPatterns = excludedPatternString
+                .split(',')
+                .map((pattern) => pattern.trim());
 
             expect(licenseCtor).to.not.have.been.called;
 
@@ -327,7 +338,9 @@ describe('[updateManager]', () => {
             return _runUntilTask(Tasks.LOAD_LICENSE).then(() => {
                 expect(licenseCtor).to.have.been.calledOnce;
                 expect(licenseCtor).to.have.been.calledWithNew;
-                expect(licenseCtor).to.have.been.calledWithExactly();
+                expect(licenseCtor).to.have.been.calledWithExactly(
+                    expectedPatterns
+                );
             });
         });
 
