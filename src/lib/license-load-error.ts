@@ -6,16 +6,16 @@
  *
  * @extends {Error}
  */
-export default class LicenseReadError extends Error {
+export default class LicenseLoadError extends Error {
     /**
      * @param {String} message The error message associated with the error.
      */
     constructor(message) {
         super(message);
         if (typeof message !== 'string') {
-            message = 'Error reading license file';
+            message = 'Error listing installed components';
         }
-        this.name = 'LicenseReadError';
+        this.name = 'LicenseLoadError';
         this.message = `[${this.name}] ${message}`;
     }
 }

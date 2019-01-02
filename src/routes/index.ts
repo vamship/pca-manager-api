@@ -11,8 +11,7 @@ import _licenseRoutes from './license';
 import _testRoutes from './test';
 
 import CorruptLicenseError from '../lib/corrupt-license-error';
-import LicenseReadError from '../lib/license-read-error';
-import LicenseWriteError from '../lib/license-write-error';
+import LicenseLoadError from '../lib/license-load-error';
 
 import CorruptLockError from '../lib/corrupt-lock-error';
 import LockReadError from '../lib/lock-read-error';
@@ -139,8 +138,7 @@ export default {
                 err instanceof LockReadError ||
                 err instanceof LockWriteError ||
                 err instanceof CorruptLockError ||
-                err instanceof LicenseReadError ||
-                err instanceof LicenseWriteError ||
+                err instanceof LicenseLoadError ||
                 err instanceof CorruptLicenseError
             ) {
                 res.status(500).json({

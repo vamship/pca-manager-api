@@ -12,12 +12,12 @@ import _rewire from 'rewire';
 
 import { testValues as _testValues } from '@vamship/test-utils';
 
-const _licenseWriteErrorModule = _rewire('../../../src/lib/license-read-error');
-const LicenseReadError = _licenseWriteErrorModule.default;
+const _licenseLoadErrorModule = _rewire('../../../src/lib/license-load-error');
+const LicenseLoadError = _licenseLoadErrorModule.default;
 
-describe('LicenseReadError', () => {
-    const ERROR_NAME = 'LicenseReadError';
-    const ERROR_MESSAGE = 'Error reading license file';
+describe('LicenseLoadError', () => {
+    const ERROR_NAME = 'LicenseLoadError';
+    const ERROR_MESSAGE = 'Error listing installed components';
 
     function _getExpectedMessage(message?: string): string {
         message = message || ERROR_MESSAGE;
@@ -26,7 +26,7 @@ describe('LicenseReadError', () => {
 
     describe('ctor()', () => {
         it('should return an Error object with default property values', () => {
-            const error = new LicenseReadError();
+            const error = new LicenseLoadError();
 
             expect(error).to.be.an.instanceOf(Error);
             expect(error.name).to.equal(ERROR_NAME);
@@ -35,7 +35,7 @@ describe('LicenseReadError', () => {
 
         it('should persist the error message property when specified', () => {
             const message = 'Something went wrong';
-            const error = new LicenseReadError(message);
+            const error = new LicenseLoadError(message);
 
             expect(error).to.be.an.instanceOf(Error);
             expect(error.message).to.equal(_getExpectedMessage(message));
@@ -45,7 +45,7 @@ describe('LicenseReadError', () => {
             const inputs = _testValues.allButString();
 
             inputs.forEach((message) => {
-                const error = new LicenseReadError(message);
+                const error = new LicenseLoadError(message);
                 expect(error.message).to.equal(_getExpectedMessage());
             });
         });

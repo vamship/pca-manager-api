@@ -15,17 +15,14 @@ import { ObjectMock, testValues as _testValues } from '@vamship/test-utils';
 import { Promise } from 'bluebird';
 
 import CorruptLicenseError from '../../../src/lib/corrupt-license-error';
-import LicenseReadError from '../../../src/lib/license-read-error';
-import LicenseWriteError from '../../../src/lib/license-write-error';
+import LicenseLoadError from '../../../src/lib/license-load-error';
 
 const _licenseModule = _rewire('../../../src/lib/license');
 const License = _licenseModule.default;
-const LICENSE_FILE_NAME = '_license';
 
 describe('License', () => {
-    function _createLicense(licenseDir?: string) {
-        licenseDir = licenseDir || _testValues.getString('licenseDir');
-        return new License(licenseDir);
+    function _createLicense() {
+        return new License();
     }
 
     function _generateLicenseData() {
@@ -253,38 +250,23 @@ describe('License', () => {
         };
     }
 
-    let _fsMock;
+    let _execaMock;
 
     beforeEach(() => {
-        _fsMock = new ObjectMock().addMock('readFile').addMock('writeFile');
+        _execaMock = new ObjectMock().addPromiseMock('execa');
 
-        _licenseModule.__set__('fs_1', {
-            default: _fsMock.instance
+        _licenseModule.__set__('execa_1', {
+            default: _execaMock.instance.execa
         });
     });
 
     describe('ctor()', () => {
-        it('should throw an error if invoked without a valid licenseDir', () => {
-            const inputs = _testValues.allButString('');
-            const error = 'Invalid licenseDir (arg #1)';
-
-            inputs.forEach((licenseDir) => {
-                const wrapper = () => {
-                    return new License(licenseDir);
-                };
-
-                expect(wrapper).to.throw(error);
-            });
-        });
-
         it('should expose the expected properties and methods', () => {
-            const license = new License(_testValues.getString('licenseDir'));
+            const license = new License();
 
             expect(license).to.be.an('object');
 
             expect(license.load).to.be.a('function');
-            expect(license.save).to.be.a('function');
-            expect(license.setData).to.be.a('function');
             expect(license.generateUpdateManifest).to.be.a('function');
         });
     });
@@ -298,204 +280,76 @@ describe('License', () => {
             expect(ret.then).to.be.a('function');
         });
 
-        it('should load the license file from the filesystem when invoked', () => {
-            const licenseDir = _testValues.getString('licenseDir');
-            const licenseFile = _path.join(licenseDir, LICENSE_FILE_NAME);
-            const license = _createLicense(licenseDir);
-            const readFileMethod = _fsMock.mocks.readFile;
+        it('should list all installed helm packages when invoked', () => {
+            const license = _createLicense();
+            const execaMethod = _execaMock.mocks.execa;
 
-            expect(readFileMethod.stub).to.not.have.been.called;
+            expect(execaMethod.stub).to.not.have.been.called;
             license.load();
 
-            expect(readFileMethod.stub).to.have.been.calledOnce;
-            expect(readFileMethod.stub.args[0]).to.have.length(2);
-            expect(readFileMethod.stub.args[0][0]).to.equal(licenseFile);
-            expect(readFileMethod.stub.args[0][1]).to.be.a('function');
+            expect(execaMethod.stub).to.have.been.calledOnce;
+            expect(execaMethod.stub.args[0]).to.have.length(2);
+            expect(execaMethod.stub.args[0][0]).to.equal('helm');
+            expect(execaMethod.stub.args[0][1]).to.deep.equal([
+                'list',
+                '--short',
+                '--tls'
+            ]);
         });
 
-        it('should reject the promise if the license file read operation fails with a non ENOENT error', () => {
-            const error = 'Error reading license file';
+        it('should reject the helm list operation fails', () => {
+            const error = 'Error listing installed components';
             const license = _createLicense();
-            const readFileMethod = _fsMock.mocks.readFile;
+            const execaMethod = _execaMock.mocks.execa;
 
             const ret = license.load();
-            const callback = readFileMethod.stub.args[0][1];
-            callback({
-                code: 'ESOMETHINGWENTWRONG'
-            });
+            execaMethod.reject('something went wrong!');
 
-            return expect(ret).to.be.rejectedWith(LicenseReadError, error);
+            return expect(ret).to.be.rejectedWith(LicenseLoadError, error);
         });
-
-        it('should fulfill the promise and reset internal data operation fails with ENOENT', () => {
-            const license = _createLicense();
-            const readFileMethod = _fsMock.mocks.readFile;
-
-            license._data = _generateLicenseData();
-
-            const ret = license.load();
-            const callback = readFileMethod.stub.args[0][1];
-            callback({
-                code: 'ENOENT'
-            });
-
-            return expect(ret).to.be.fulfilled.then(() => {
-                expect(license._data).to.deep.equal({
-                    components: []
-                });
-            });
-        });
-
-        it('should reject the promise if license data parsing throws an error', () => {
-            const error = 'Error parsing license data';
-            const license = _createLicense();
-            const readFileMethod = _fsMock.mocks.readFile;
-
-            const ret = license.load();
-            const callback = readFileMethod.stub.args[0][1];
-            callback(undefined, 'bad json data');
-
-            return expect(ret).to.be.rejectedWith(error);
-        });
-
-        it('should throw an error if the license data is not valid', () => {
-            const inputs = _testValues.allButSelected('undefined', 'function');
-            const error = /.*License does not conform to expected schema.*<root>.*/;
-
-            const result = Promise.map(inputs, (licenseData) => {
-                const license = _createLicense();
-                const readFileMethod = _fsMock.mocks.readFile;
-                readFileMethod.reset();
-
-                const ret = license.load();
-                const callback = readFileMethod.stub.args[0][1];
-                callback(undefined, JSON.stringify(licenseData));
-
-                return expect(ret).to.be.rejectedWith(error);
-            });
-
-            return expect(result).to.be.fulfilled;
-        });
-
-        describe(
-            '[license schema validation]',
-            _generateLicenseSchemaValidationSuite((licenseData) => {
-                const license = _createLicense();
-                const readFileMethod = _fsMock.mocks.readFile;
-                readFileMethod.reset();
-
-                const ret = license.load();
-                const callback = readFileMethod.stub.args[0][1];
-                callback(undefined, JSON.stringify(licenseData));
-
-                return ret;
-            })
-        );
 
         it('should store the license data in an internal property and resolve the promise', () => {
             const license = _createLicense();
-            const readFileMethod = _fsMock.mocks.readFile;
-            const newData = _generateLicenseData();
+            const execaMethod = _execaMock.mocks.execa;
 
-            license._data = _generateLicenseData();
+            const newData = {
+                components: ['foo', 'bar', 'baz']
+            };
+
+            license._data = newData;
 
             const ret = license.load();
-            const callback = readFileMethod.stub.args[0][1];
-            callback(undefined, JSON.stringify(newData));
+            execaMethod.resolve({
+                stdout: newData.components.join('\n')
+            });
 
             return expect(ret).to.be.fulfilled.then(() => {
                 expect(license._data).to.deep.equal(newData);
-            });
-        });
-    });
-
-    describe('save()', () => {
-        it('should return a promise when invoked', () => {
-            const license = _createLicense();
-
-            const ret = license.save();
-            expect(ret).to.be.an('object');
-            expect(ret.then).to.be.a('function');
-        });
-
-        it('should save the license file from the filesystem when invoked', () => {
-            const licenseDir = _testValues.getString('licenseDir');
-            const licenseFile = _path.join(licenseDir, LICENSE_FILE_NAME);
-            const license = _createLicense(licenseDir);
-            const writeFileMethod = _fsMock.mocks.writeFile;
-
-            const licenseData = _generateLicenseData();
-
-            license._data = licenseData;
-
-            expect(writeFileMethod.stub).to.not.have.been.called;
-            license.save();
-
-            expect(writeFileMethod.stub).to.have.been.calledOnce;
-            expect(writeFileMethod.stub.args[0]).to.have.length(3);
-            expect(writeFileMethod.stub.args[0][0]).to.equal(licenseFile);
-            expect(writeFileMethod.stub.args[0][1]).to.equal(
-                JSON.stringify(licenseData)
-            );
-            expect(writeFileMethod.stub.args[0][2]).to.be.a('function');
-        });
-
-        it('should reject the promise if the license file write operation fails', () => {
-            const error = 'Error writing license file';
-            const license = _createLicense();
-            const writeFileMethod = _fsMock.mocks.writeFile;
-
-            const ret = license.save();
-            const callback = writeFileMethod.stub.args[0][2];
-            callback({
-                code: 'ESOMETHINGWENTWRONG'
-            });
-
-            return expect(ret).to.be.rejectedWith(LicenseWriteError, error);
-        });
-
-        it('should resolve the promise if the file write operation succeeds', () => {
-            const license = _createLicense();
-            const writeFileMethod = _fsMock.mocks.writeFile;
-
-            const ret = license.save();
-            const callback = writeFileMethod.stub.args[0][2];
-            callback();
-
-            return expect(ret).to.be.fulfilled;
-        });
-    });
-
-    describe('setData()', () => {
-        it('should throw an error if licenseData is invalid', () => {
-            const inputs = _testValues.allButObject();
-            const error = 'Invalid licenseData (arg #1)';
-
-            inputs.forEach((licenseData) => {
-                const wrapper = () => {
-                    const license = _createLicense();
-                    license.setData(licenseData);
-                };
-                expect(wrapper).to.throw(error);
+                expect(license._data).to.not.equal(newData);
             });
         });
 
-        describe(
-            '[license schema validation]',
-            _generateLicenseSchemaValidationSuite((licenseData) => {
-                return Promise.try(() => _createLicense().setData(licenseData));
-            })
-        );
-
-        it('should update the internal license data if the license data is valid', () => {
+        it('should omit any component starting with "pca-" from the component list', () => {
             const license = _createLicense();
-            const licenseData = _generateLicenseData();
+            const execaMethod = _execaMock.mocks.execa;
 
-            expect(license._data).to.not.deep.equal(licenseData);
+            const newData = {
+                components: ['foo', 'bar', 'baz']
+            };
 
-            license.setData(licenseData);
+            license._data = newData;
 
-            expect(license._data).to.deep.equal(licenseData);
+            const ret = license.load();
+            execaMethod.resolve({
+                stdout: newData.components
+                    .concat(['pca-foo', 'pca-bar'])
+                    .join('\n')
+            });
+
+            return expect(ret).to.be.fulfilled.then(() => {
+                expect(license._data).to.deep.equal(newData);
+                expect(license._data).to.not.equal(newData);
+            });
         });
     });
 

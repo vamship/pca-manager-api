@@ -68,10 +68,8 @@ export default {
                 return _lock!.init();
             })
             .then(() => {
-                const licenseDir = config.get('app.licenseDir');
-
-                logger.trace('Initializing license object', { licenseDir });
-                license = new License(licenseDir);
+                logger.trace('Initializing license object');
+                license = new License();
 
                 return license.load();
             })
@@ -257,20 +255,6 @@ export default {
                     }
                 });
                 return _lock!.save();
-            })
-            .then(() => {
-                if (_lock!.state === 'DONE') {
-                    const licenseDir = config.get('app.licenseDir');
-                    logger.trace('Initializing license object', {
-                        licenseDir
-                    });
-                    const license = new License(licenseDir);
-                    license.setData(_lock!.license);
-                    logger.trace('Saving updated license data', {
-                        licenseData: _lock!.license
-                    });
-                    return license.save();
-                }
             })
             .finally(() => {
                 return Promise.try(() => {

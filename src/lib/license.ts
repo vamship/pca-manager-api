@@ -1,4 +1,3 @@
-import _fs from 'fs';
 import _path from 'path';
 
 import {
@@ -17,8 +16,7 @@ import {
 } from './types';
 
 import CorruptLicenseError from './corrupt-license-error';
-import LicenseReadError from './license-read-error';
-import LicenseWriteError from './license-write-error';
+import LicenseLoadError from './license-load-error';
 
 import licenseSchema from '../schema/license-schema';
 const _checkLicenseSchema = _schemaHelper.createSchemaChecker(
@@ -26,7 +24,7 @@ const _checkLicenseSchema = _schemaHelper.createSchemaChecker(
     'License does not conform to expected schema'
 );
 
-const LICENSE_FILE_NAME = '_license';
+import _execa from 'execa';
 
 /**
  * Class that represents the current license on the server. Provides methods to
@@ -35,32 +33,17 @@ const LICENSE_FILE_NAME = '_license';
  */
 export default class License {
     private _logger: ILogger;
-    private _licenseDir: string;
     private _data: ILicense;
-    private _readFileMethod: (fileName: string) => Promise<string>;
-    private _writeFileMethod: (
-        fileName: string,
-        data: string
-    ) => Promise<string>;
 
     /**
-     * @param licenseDir The path to the directory containing the license file.
      */
-    constructor(licenseDir: string) {
-        _argValidator.checkString(licenseDir, 1, 'Invalid licenseDir (arg #1)');
-
-        this._licenseDir = licenseDir;
+    constructor() {
         this._data = {
             components: []
         };
 
-        this._logger = _loggerProvider.getLogger('license', {
-            licenseDir
-        });
+        this._logger = _loggerProvider.getLogger('license');
         this._logger.trace('License initialized');
-
-        this._readFileMethod = Promise.promisify(_fs.readFile.bind(_fs));
-        this._writeFileMethod = Promise.promisify(_fs.writeFile.bind(_fs));
     }
 
     /**
@@ -72,68 +55,26 @@ export default class License {
      *         be thrown.
      */
     public load(): Promise<any> {
-        const licenseFile = _path.join(this._licenseDir, LICENSE_FILE_NAME);
-        this._logger.trace('Reading license file', { licenseFile });
-        return this._readFileMethod(licenseFile).then(
-            (data) => {
-                try {
-                    this._logger.trace('Parsing license file contents');
-                    data = JSON.parse(data);
-                } catch (ex) {
-                    const message = 'Error parsing license data';
-                    this._logger.error(ex, message);
-                    throw new Error(message);
-                }
+        this._logger.trace('Listing installed components');
 
-                this._performLicenseSchemaCheck(data);
+        return _execa('helm', ['list', '--short', '--tls']).then(
+            (data) => {
+                this._logger.trace('Splitting component list into array');
+                const components = data.stdout
+                    .split('\n')
+                    .filter((component) => !component.startsWith('pca-'));
 
                 this._logger.trace('Setting license data from file');
-                this._data = data;
+                this._data = {
+                    components
+                };
             },
             (err) => {
-                if (err.code !== 'ENOENT') {
-                    const message = 'Error reading license file';
-                    this._logger.error(err, message);
-                    throw new LicenseReadError(message);
-                }
-                this._logger.warn(
-                    'License file does not exist. Setting data to default value'
-                );
-                this._data = {
-                    components: []
-                };
+                const message = 'Error listing installed components';
+                this._logger.error(err, message);
+                throw new LicenseLoadError(message);
             }
         );
-    }
-
-    /**
-     * Saves the license data in the object to disk as the current license file.
-     *
-     * @return  A promise that is resolved/rejected based on the outcome of the
-     *          save operation.
-     */
-    public save(): Promise<any> {
-        const licenseFile = _path.join(this._licenseDir, LICENSE_FILE_NAME);
-        this._logger.trace('Writing to license file', { licenseFile });
-        return this._writeFileMethod(
-            licenseFile,
-            JSON.stringify(this._data)
-        ).then(undefined, (err) => {
-            const message = 'Error writing license file';
-            this._logger.error(err, message);
-            throw new LicenseWriteError(message);
-        });
-    }
-
-    /**
-     * Updates the current license data contained within this object.
-     *
-     * @param licenseData An object that defines the updated license.
-     */
-    public setData(licenseData: ILicense) {
-        _argValidator.checkObject(licenseData, 'Invalid licenseData (arg #1)');
-        this._performLicenseSchemaCheck(licenseData);
-        this._data = licenseData;
     }
 
     /**

@@ -38,7 +38,6 @@ describe('[updateManager]', () => {
         _configMock.__data = {
             app: {
                 lockDir: _testValues.getString('lockDir'),
-                licenseDir: _testValues.getString('licenseDir'),
                 stsEndpoint: _testValues.getString('stsEndpoint'),
                 serverApiKey: _testValues.getString('serverApiKey'),
                 callbackEndpoint: _testValues.getString('callbackEndpoint'),
@@ -62,8 +61,6 @@ describe('[updateManager]', () => {
 
         _licenseMock = new ObjectMock()
             .addPromiseMock('load')
-            .addPromiseMock('save')
-            .addMock('setData')
             .addMock('generateUpdateManifest', () => {
                 return _licenseMock.__updateManifest;
             });
@@ -322,8 +319,6 @@ describe('[updateManager]', () => {
 
         it('should instantiate a new license object with the specified license data', () => {
             const licenseCtor = _licenseMock.ctor;
-            const licenseDir = _testValues.getString('licenseDir');
-            _configMock.__data.app.licenseDir = licenseDir;
 
             expect(licenseCtor).to.not.have.been.called;
 
@@ -332,7 +327,7 @@ describe('[updateManager]', () => {
             return _runUntilTask(Tasks.LOAD_LICENSE).then(() => {
                 expect(licenseCtor).to.have.been.calledOnce;
                 expect(licenseCtor).to.have.been.calledWithNew;
-                expect(licenseCtor).to.have.been.calledWithExactly(licenseDir);
+                expect(licenseCtor).to.have.been.calledWithExactly();
             });
         });
 
@@ -593,7 +588,6 @@ describe('[updateManager]', () => {
             NOTIFY_FLOW,
             INIT_LOCK,
             SAVE_LOCK,
-            SAVE_LICENSE,
             CLEANUP_LOCK,
             CLEANUP_JOB,
             END
@@ -603,7 +597,6 @@ describe('[updateManager]', () => {
             const createFlowMethod = _flowMocks.mocks.createFlow;
             const notifyFlowMethod = _flowMocks.mocks.notifyFlow;
             const initMethod = _lockMock.mocks.init;
-            const saveLicenseMethod = _licenseMock.mocks.save;
             const saveLockMethod = _lockMock.mocks.save;
             const cleanupLockMethod = _lockMock.mocks.cleanup;
             const cleanupJobMethod = _softwareUpdaterJobMock.mocks.cleanup;
@@ -613,7 +606,6 @@ describe('[updateManager]', () => {
                 () => notifyFlowMethod.resolve(),
                 () => initMethod.resolve(),
                 () => saveLockMethod.resolve(),
-                () => saveLicenseMethod.resolve(),
                 () => cleanupLockMethod.resolve(),
                 () => cleanupJobMethod.resolve()
             ];
@@ -1076,109 +1068,6 @@ describe('[updateManager]', () => {
             const ret = _invokeNotify(lock.lockId, messages);
 
             _runUntilTask(Tasks.SAVE_LOCK).then(() => {
-                saveMethod.reject(error).catch((ex) => {
-                    cleanupLockMethod.resolve();
-                    cleanupJobMethod.resolve();
-                });
-            });
-
-            return expect(ret)
-                .to.be.rejectedWith(error)
-                .then(_verifyCleanup(true));
-        });
-
-        it('should not create a new license object for messages with kind = fail', () => {
-            const licenseCtor = _licenseMock.ctor;
-            const setDataMethod = _licenseMock.mocks.setData;
-            const saveMethod = _licenseMock.mocks.save;
-
-            const lock = _initLock();
-            const messages = _generateMessages(['fail']);
-
-            expect(licenseCtor).to.not.have.been.called;
-            expect(setDataMethod.stub).to.not.have.been.called;
-            expect(saveMethod.stub).to.not.have.been.called;
-
-            _invokeNotify(lock.lockId, messages);
-
-            return _runUntilTask(Tasks.SAVE_LICENSE).then(() => {
-                expect(licenseCtor).to.not.have.been.called;
-                expect(setDataMethod.stub).to.not.have.been.called;
-                expect(saveMethod.stub).to.not.have.been.called;
-            });
-        });
-
-        it('should not update license for messages with kind = success', () => {
-            const licenseCtor = _licenseMock.ctor;
-            const licenseDir = _testValues.getString('licenseDir');
-
-            _configMock.__data.app.licenseDir = licenseDir;
-
-            const lock = _initLock();
-            const messages = _generateMessages(['success']);
-
-            expect(licenseCtor).to.not.have.been.called;
-
-            _invokeNotify(lock.lockId, messages);
-
-            return _runUntilTask(Tasks.SAVE_LICENSE).then(() => {
-                expect(licenseCtor).to.have.been.calledOnce;
-                expect(licenseCtor).to.have.been.calledWithNew;
-                expect(licenseCtor).to.have.been.calledWithExactly(licenseDir);
-            });
-        });
-
-        it('should update the license data with data from the current lock for kind=success', () => {
-            const setDataMethod = _licenseMock.mocks.setData;
-
-            const lock = _initLock();
-            const messages = _generateMessages(['success']);
-            const lockManifest = {
-                foo: _testValues.getString('foo')
-            };
-
-            lock.license = lockManifest;
-
-            expect(setDataMethod.stub).to.not.have.been.called;
-
-            _invokeNotify(lock.lockId, messages);
-
-            return _runUntilTask(Tasks.SAVE_LICENSE).then(() => {
-                expect(setDataMethod.stub).to.have.been.calledOnce;
-                expect(setDataMethod.stub).to.have.been.calledWithExactly(
-                    lockManifest
-                );
-            });
-        });
-
-        it('should save the license file to disk', () => {
-            const saveMethod = _licenseMock.mocks.save;
-
-            const lock = _initLock();
-            const messages = _generateMessages(['success']);
-
-            expect(saveMethod.stub).to.not.have.been.called;
-
-            _invokeNotify(lock.lockId, messages);
-
-            return _runUntilTask(Tasks.SAVE_LICENSE).then(() => {
-                expect(saveMethod.stub).to.have.been.calledOnce;
-                expect(saveMethod.stub).to.have.been.calledWithExactly();
-            });
-        });
-
-        it('should reject the promise if license save fails', () => {
-            const saveMethod = _licenseMock.mocks.save;
-            const cleanupLockMethod = _lockMock.mocks.cleanup;
-            const cleanupJobMethod = _softwareUpdaterJobMock.mocks.cleanup;
-            const error = 'something went wrong!';
-
-            const lock = _initLock();
-            const messages = _generateMessages(['success']);
-
-            const ret = _invokeNotify(lock.lockId, messages);
-
-            _runUntilTask(Tasks.SAVE_LICENSE).then(() => {
                 saveMethod.reject(error).catch((ex) => {
                     cleanupLockMethod.resolve();
                     cleanupJobMethod.resolve();
