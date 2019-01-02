@@ -1,7 +1,6 @@
 'use strict';
 
 const { Directory } = require('@vamship/grunt-utils');
-const _path = require('path');
 const _camelcase = require('camelcase');
 
 // -------------------------------------------------------------------------------
