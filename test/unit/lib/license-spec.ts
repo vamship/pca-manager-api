@@ -313,14 +313,18 @@ describe('License', () => {
             const execaMethod = _execaMock.mocks.execa;
 
             const newData = {
-                components: ['foo', 'bar', 'baz']
+                components: ['foo', 'bar', 'baz'].map((releaseName) => ({
+                    releaseName
+                }))
             };
 
             license._data = newData;
 
             const ret = license.load();
             execaMethod.resolve({
-                stdout: newData.components.join('\n')
+                stdout: newData.components
+                    .map((component) => component.releaseName)
+                    .join('\n')
             });
 
             return expect(ret).to.be.fulfilled.then(() => {
@@ -334,7 +338,9 @@ describe('License', () => {
             const execaMethod = _execaMock.mocks.execa;
 
             const newData = {
-                components: ['foo', 'bar', 'baz']
+                components: ['foo', 'bar', 'baz'].map((releaseName) => ({
+                    releaseName
+                }))
             };
 
             license._data = newData;
@@ -342,6 +348,7 @@ describe('License', () => {
             const ret = license.load();
             execaMethod.resolve({
                 stdout: newData.components
+                    .map((component) => component.releaseName)
                     .concat(['pca-foo', 'pca-bar'])
                     .join('\n')
             });

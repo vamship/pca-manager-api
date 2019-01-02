@@ -62,7 +62,8 @@ export default class License {
                 this._logger.trace('Splitting component list into array');
                 const components = data.stdout
                     .split('\n')
-                    .filter((component) => !component.startsWith('pca-'));
+                    .filter((component) => !component.startsWith('pca-'))
+                    .map((releaseName) => ({ releaseName }));
 
                 this._logger.trace('Setting license data from file');
                 this._data = {
