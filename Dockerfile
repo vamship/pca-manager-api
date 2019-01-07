@@ -8,7 +8,7 @@ ARG APP_VERSION
 LABEL org.label-schema.name=$APP_NAME \
       org.label-schema.version=$APP_VERSION \
       org.label-schema.build-date=$BUILD_TIMESTAMP \
-      org.label-schema.url="https://hub.docker.com/r/vamship/pca-manager-microservice/" \
+      org.label-schema.url="https://hub.docker.com/r/vamship/pca-manager-api/" \
       org.label-schema.vcs-url="https://github.com/vamship/pca-manager-microservice"
 
 # Note: Latest version of kubectl may be found at:
